@@ -27,16 +27,6 @@
         "command": "pi-companion.rejectCurrent",
         "title": "Pi Companion: Reject Current File",
         "icon": "$(close)"
-      },
-      {
-        "command": "pi-companion.approveAll",
-        "title": "Pi Companion: Approve All Files",
-        "icon": "$(check-all)"
-      },
-      {
-        "command": "pi-companion.rejectAll",
-        "title": "Pi Companion: Reject All Files",
-        "icon": "$(clear-all)"
       }
     ],
     "menus": {

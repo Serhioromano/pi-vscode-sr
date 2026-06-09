@@ -15,8 +15,6 @@ const sessions = new Map<string, DiffSession>();
 const reviewFiles = new Map<string, Set<string>>();
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('[Pi Companion] activated');
-
   const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!root) {
     vscode.window.showWarningMessage('Pi Companion: открой workspace');
@@ -46,8 +44,6 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('pi-companion.approveCurrent', () => approveCurrent()),
     vscode.commands.registerCommand('pi-companion.rejectCurrent', () => rejectCurrent()),
-    vscode.commands.registerCommand('pi-companion.approveAll', () => approveAll()),
-    vscode.commands.registerCommand('pi-companion.rejectAll', () => rejectAll()),
   );
 }
 
@@ -115,9 +111,23 @@ function handleRequest(requestPath: string) {
 // ─── Approve / Reject ─────────────────────────────────────────────────
 
 function getCurrentSession(): DiffSession | undefined {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return undefined;
-  return sessions.get(editor.document.uri.fsPath);
+  // Tier 1: active editor (fast path — works when tmp side has focus)
+  const active = vscode.window.activeTextEditor;
+  if (active) {
+    const s = sessions.get(active.document.uri.fsPath);
+    if (s) return s;
+  }
+  // Tier 2: all visible editors (catches original side of diff)
+  for (const editor of vscode.window.visibleTextEditors) {
+    const s = sessions.get(editor.document.uri.fsPath);
+    if (s) return s;
+  }
+  // Tier 3: any pending session (final fallback — Pi runs tools sequentially,
+  // so there's at most one active review at any time)
+  for (const s of sessions.values()) {
+    if (s.status === 'pending') return s;
+  }
+  return undefined;
 }
 
 async function approveCurrent() {
@@ -154,33 +164,6 @@ async function rejectCurrent() {
   await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
   checkReviewComplete(s.reviewId);
-}
-
-async function approveAll() {
-  // Собрать все pending-сессии
-  const pending = [...sessions.values()].filter(s => s.status === 'pending');
-  for (const s of pending) {
-    const edited = fs.readFileSync(s.tmpFsPath, 'utf-8');
-    fs.writeFileSync(s.originalFsPath, edited, 'utf-8');
-    try { fs.unlinkSync(s.tmpFsPath); } catch {}
-    s.status = 'approved';
-  }
-  // Закрыть все diff-вкладки
-  await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-  // Найти reviewId по любой из сессий
-  const reviewId = pending[0]?.reviewId;
-  if (reviewId) checkReviewComplete(reviewId);
-}
-
-async function rejectAll() {
-  const pending = [...sessions.values()].filter(s => s.status === 'pending');
-  for (const s of pending) {
-    try { fs.unlinkSync(s.tmpFsPath); } catch {}
-    s.status = 'rejected';
-  }
-  await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-  const reviewId = pending[0]?.reviewId;
-  if (reviewId) checkReviewComplete(reviewId);
 }
 
 // ─── Завершение ревью ─────────────────────────────────────────────────

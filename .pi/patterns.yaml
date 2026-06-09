@@ -28,3 +28,8 @@ strictModeWhiteList:
   - ^npm install\b
   - ^npm list\b
   - ^pi list\b
+  - ^diff\b
+  - ^grep\b
+  - ^for\b
+  - ^do\b
+  - ^done\b

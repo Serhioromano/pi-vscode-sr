@@ -36,7 +36,7 @@ Pi опрашивает result-file каждые 500ms.
 
 Инструменты **не кидают исключения**. `createReviewAndWait` возвращает `{ status: "rejected" }`, execute tool-a возвращает `{ isError: true }`. Агент видит явную ошибку, файл не модифицирован.
 
-**Двухфазный подход:** Фаза 1 (1.5s) — опрос VS Code без TUI. Если VS Code ответил — TUI не показывается. Фаза 2 — TUI + параллельный опрос.
+**Двухфазный подход:** Фаза 1 (2s, опрос каждые 100ms) — опрос VS Code без TUI. 20 проверок за 2 секунды. Если VS Code ответил — TUI не показывается. Между фазами — синхронный `existsSync` на result-файл (ловим гонку между интервалами опроса). Фаза 2 — TUI + параллельный опрос (каждые 500ms). `pollResultFile` обёрнут в try-catch на случай частично записанного/пустого файла. Параметр `interval` настраивает частоту опроса.
 
 **Approve All** работает только в рамках одного промпта (`message_start`/`message_end` сбрасывают).
 
@@ -57,7 +57,8 @@ pi-vscode/
 ## VS Code Extension: ключевые моменты
 
 - Сессии **не удаляются** до формирования result-файла — `checkReviewComplete` использует `session.status` (`"pending"|"approved"|"rejected"`)
-- Команды: `pi-companion.approveCurrent|rejectCurrent|approveAll|rejectAll`
+- `getCurrentSession` ищет по **всем** `visibleTextEditors` (обе стороны диффа), а не только `activeTextEditor`
+- Команды: `pi-companion.approveCurrent|rejectCurrent`
 - Контекстный ключ: `piCompanion.isActive`
 
 ## Разработка

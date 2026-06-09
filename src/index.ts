@@ -48,21 +48,30 @@ async function createReviewAndWait(
     return { status: "approved", final: proposed };
   }
 
-  // Phase 1: give VS Code a quick head start (1.5s) so TUI doesn't
-  // pop up unnecessarily when the user is already reviewing in editor
+  // Phase 1: give VS Code a head start (2s, poll every 100ms) so TUI doesn't
+  // pop up when the user is already reviewing in editor.
+  // 2 seconds with 100ms intervals = 20 checks — catches VS Code response quickly.
   const resultPath = join(resultsDir, `${uuid}.json`);
   const deadline = Date.now() + 10 * 60 * 1000;
 
-  const early = await pollResultFile(resultPath, Date.now() + 1500);
+  const early = await pollResultFile(resultPath, Date.now() + 2000, 100);
   if (early !== "timeout") {
-    // VS Code already responded during the head start window
     if (early === "file-rejected") return { status: "rejected" };
     return { status: "approved", final: proposed };
   }
 
-  // Phase 2: show TUI and keep polling VS Code in parallel
+  // Sync check: VS Code may have written the result file between poll intervals.
+  if (existsSync(resultPath)) {
+    const result = JSON.parse(readFileSync(resultPath, "utf-8"));
+    if (result.status === "rejected" || result.files?.[0]?.status === "rejected") {
+      return { status: "rejected" };
+    }
+    return { status: "approved", final: proposed };
+  }
+
+  // Phase 2: show TUI and keep polling VS Code in parallel (every 500ms)
   const tuiPromise = showTuiSelector(ctx, filePath);
-  const pollPromise = pollResultFile(resultPath, deadline);
+  const pollPromise = pollResultFile(resultPath, deadline, 500);
 
   const outcome = await Promise.race([tuiPromise, pollPromise]);
 
@@ -100,17 +109,27 @@ function writeSyncResult(resultsDir: string, uuid: string, status: "approved" | 
   );
 }
 
-async function pollResultFile(resultPath: string, deadline: number): Promise<string> {
+async function pollResultFile(resultPath: string, deadline: number, interval = 500): Promise<string> {
   while (Date.now() < deadline) {
-    if (existsSync(resultPath)) {
-      const result = JSON.parse(readFileSync(resultPath, "utf-8"));
-      const fileResult = result.files?.[0];
-      if (result.status === "rejected" || fileResult?.status === "rejected") {
-        return "file-rejected";
+    try {
+      if (existsSync(resultPath)) {
+        const raw = readFileSync(resultPath, "utf-8");
+        if (!raw.trim()) {
+          // File exists but is empty — still being written
+          await sleep(200);
+          continue;
+        }
+        const result = JSON.parse(raw);
+        const fileResult = result.files?.[0];
+        if (result.status === "rejected" || fileResult?.status === "rejected") {
+          return "file-rejected";
+        }
+        return "file-approved";
       }
-      return "file-approved";
+    } catch {
+      // File may be partially written or malformed — retry
     }
-    await sleep(500);
+    await sleep(interval);
   }
   return "timeout";
 }
