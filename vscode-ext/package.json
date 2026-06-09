@@ -1,5 +1,5 @@
 {
-  "name": "vscode-pi-companion",
+  "name": "vscode-pi-sr",
   "displayName": "Pi Companion",
   "description": "Review and approve file changes proposed by Pi agent",
   "version": "0.1.0",
@@ -19,26 +19,26 @@
   "contributes": {
     "commands": [
       {
-        "command": "pi-companion.approveCurrent",
-        "title": "Pi Companion: Approve Current File",
+        "command": "pi-sr.approveCurrent",
+        "title": "Pi SR: Accept",
         "icon": "$(check)"
       },
       {
-        "command": "pi-companion.rejectCurrent",
-        "title": "Pi Companion: Reject Current File",
+        "command": "pi-sr.rejectCurrent",
+        "title": "Pi SR: Reject",
         "icon": "$(close)"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "pi-companion.approveCurrent",
-          "when": "piCompanion.isActive",
+          "command": "pi-sr.approveCurrent",
+          "when": "piSr.isActive",
           "group": "navigation@1"
         },
         {
-          "command": "pi-companion.rejectCurrent",
-          "when": "piCompanion.isActive",
+          "command": "pi-sr.rejectCurrent",
+          "when": "piSr.isActive",
           "group": "navigation@2"
         }
       ]

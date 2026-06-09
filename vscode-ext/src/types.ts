@@ -22,7 +22,7 @@ export interface ReviewResultFile {
 
 export interface ReviewResult {
   id: string;
-  status: 'approved' | 'rejected' | 'partial';
+  status: 'approved' | 'rejected';
   files: ReviewResultFile[];
 }
 

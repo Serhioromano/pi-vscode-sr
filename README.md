@@ -9,13 +9,13 @@ The project has **two components** in one repository:
 ### 1. Pi Extension (root)
 
 - **`src/index.ts`** — Extension loaded by Pi agent (`@earendil-works/pi-tui`)
-- Published as npm package `pi-vscode`
+- Published as npm package `pi-vscode-sr`
 - **Overrides `write` tool** — instead of writing directly, creates a review request in `.pi/review-requests/{uuid}.json`
 - Polls `.pi/review-results/{uuid}.json` for user's decision, then writes if approved
 
 ### 2. VS Code Extension (`vscode-ext/`) — **Pi Companion**
 
-- **`vscode-ext/src/extension.ts`** — VS Code extension (package name: `vscode-pi-companion`) with approve/reject buttons in diff editor
+- **`vscode-ext/src/extension.ts`** — VS Code extension (package name: `vscode-pi-sr`) with approve/reject buttons in diff editor
 - Watches `.pi/review-requests/` for new review requests from Pi
 - Opens diff editors with **✓ Approve / ✗ Reject** buttons in the editor title bar
 - Writes results to `.pi/review-results/` for Pi to read

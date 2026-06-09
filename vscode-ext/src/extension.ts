@@ -3,47 +3,47 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ReviewRequest, ReviewResult, ReviewResultFile, DiffSession } from './types';
 
-// Глобальное состояние
+// Global state
 let workspaceRoot: string;
 let requestsDir: string;
 let resultsDir: string;
 let watcher: fs.FSWatcher | null = null;
 
-// key = tmpFsPath (URI.fsPath активного редактора)
+// key = tmpFsPath (URI.fsPath of the active editor)
 const sessions = new Map<string, DiffSession>();
-// key = reviewId, value = массив filePath-ей этого ревью
+// key = reviewId, value = set of file paths in this review
 const reviewFiles = new Map<string, Set<string>>();
 
 export function activate(context: vscode.ExtensionContext) {
   const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!root) {
-    vscode.window.showWarningMessage('Pi Companion: открой workspace');
+    vscode.window.showWarningMessage('Pi Companion: open a workspace first');
     return;
   }
   workspaceRoot = root;
   requestsDir = path.join(workspaceRoot, '.pi', 'review-requests');
   resultsDir = path.join(workspaceRoot, '.pi', 'review-results');
 
-  // Создать директории
+  // Create directories
   fs.mkdirSync(requestsDir, { recursive: true });
   fs.mkdirSync(resultsDir, { recursive: true });
 
-  // Следить за новыми запросами
+  // Watch for new review requests
   watcher = fs.watch(requestsDir, (_, filename) => {
     if (!filename?.endsWith('.json')) return;
     const fp = path.join(requestsDir, filename);
     if (fs.existsSync(fp)) handleRequest(fp);
   });
 
-  // Восстановить незавершённые ревью
+  // Recover incomplete reviews
   for (const f of fs.readdirSync(requestsDir)) {
     if (f.endsWith('.json')) handleRequest(path.join(requestsDir, f));
   }
 
-  // Команды для кнопок в editor/title
+  // Commands for editor/title buttons
   context.subscriptions.push(
-    vscode.commands.registerCommand('pi-companion.approveCurrent', () => approveCurrent()),
-    vscode.commands.registerCommand('pi-companion.rejectCurrent', () => rejectCurrent()),
+    vscode.commands.registerCommand('pi-sr.approveCurrent', () => approveCurrent()),
+    vscode.commands.registerCommand('pi-sr.rejectCurrent', () => rejectCurrent()),
   );
 }
 
@@ -51,26 +51,26 @@ export function deactivate() {
   watcher?.close();
 }
 
-// ─── Обработка нового запроса ────────────────────────────────────────
+// ─── Handle new review request ────────────────────────────────────────
 
 function handleRequest(requestPath: string) {
   let req: ReviewRequest;
   try {
     req = JSON.parse(fs.readFileSync(requestPath, 'utf-8'));
   } catch {
-    vscode.window.showErrorMessage(`Pi Review: битый JSON в ${requestPath}`);
+    vscode.window.showErrorMessage(`Pi Review: malformed JSON in ${requestPath}`);
     return;
   }
 
   if (!req.id || !req.files?.length) return;
 
-  // Если ревью с таким id уже обрабатывается — пропустить
+  // Skip if this review is already being processed
   if (reviewFiles.has(req.id)) return;
 
   const fileSet = new Set<string>();
   reviewFiles.set(req.id, fileSet);
 
-  // Для каждого файла: создать tmp, открыть diff
+  // For each file: create tmp, open diff
   req.files.forEach(file => {
     fileSet.add(file.path);
 
@@ -80,7 +80,7 @@ function handleRequest(requestPath: string) {
     const tmpPath = path.join(tmpDir, path.basename(file.path));
     fs.writeFileSync(tmpPath, file.proposed, 'utf-8');
 
-    // Если оригинального файла нет — создать пустой
+    // Create original file if it doesn't exist
     const origPath = path.join(workspaceRoot, file.path);
     if (!fs.existsSync(origPath)) {
       fs.mkdirSync(path.dirname(origPath), { recursive: true });
@@ -96,14 +96,14 @@ function handleRequest(requestPath: string) {
     };
     sessions.set(tmpPath, session);
 
-    // Открыть diff
+    // Open diff
     vscode.commands.executeCommand(
       'vscode.diff',
       vscode.Uri.file(origPath),
       vscode.Uri.file(tmpPath),
       `Pi: ${file.path}`
     ).then(() => {
-      vscode.commands.executeCommand('setContext', 'piCompanion.isActive', true);
+      vscode.commands.executeCommand('setContext', 'piSr.isActive', true);
     });
   });
 }
@@ -122,30 +122,35 @@ function getCurrentSession(): DiffSession | undefined {
     const s = sessions.get(editor.document.uri.fsPath);
     if (s) return s;
   }
-  // Tier 3: any pending session (final fallback — Pi runs tools sequentially,
-  // so there's at most one active review at any time)
+  // Tier 3: if exactly one pending session exists, return it
+  // (handles edge case where diff editor sides aren't in visibleTextEditors)
+  const pending: DiffSession[] = [];
   for (const s of sessions.values()) {
-    if (s.status === 'pending') return s;
+    if (s.status === 'pending') pending.push(s);
   }
+  if (pending.length === 1) return pending[0];
   return undefined;
 }
 
 async function approveCurrent() {
   const s = getCurrentSession();
-  if (!s) return;
+  if (!s) {
+    vscode.window.showErrorMessage('Pi Companion: no review session found. Is the diff editor open?');
+    return;
+  }
 
-  // Прочитать отредактированное содержимое tmp-файла
+  // Read edited content from tmp file
   const edited = fs.readFileSync(s.tmpFsPath, 'utf-8');
 
-  // Записать в оригинал
+  // Write to original
   fs.writeFileSync(s.originalFsPath, edited, 'utf-8');
 
-  // Удалить tmp
+  // Remove tmp
   try { fs.unlinkSync(s.tmpFsPath); } catch {}
 
   s.status = 'approved';
 
-  // Закрыть diff-вкладку
+  // Close diff tab
   await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
   checkReviewComplete(s.reviewId);
@@ -153,39 +158,42 @@ async function approveCurrent() {
 
 async function rejectCurrent() {
   const s = getCurrentSession();
-  if (!s) return;
+  if (!s) {
+    vscode.window.showErrorMessage('Pi Companion: no review session found. Is the diff editor open?');
+    return;
+  }
 
-  // Удалить tmp
+  // Remove tmp
   try { fs.unlinkSync(s.tmpFsPath); } catch {}
 
   s.status = 'rejected';
 
-  // Закрыть diff-вкладку
+  // Close diff tab
   await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
   checkReviewComplete(s.reviewId);
 }
 
-// ─── Завершение ревью ─────────────────────────────────────────────────
+// ─── Complete review ──────────────────────────────────────────────────
 
 function checkReviewComplete(reviewId: string) {
-  // Есть ли ещё незавершённые сессии этого ревью?
+  // Any pending sessions left for this review?
   for (const s of sessions.values()) {
-    if (s.reviewId === reviewId && s.status === 'pending') return; // ещё не всё
+    if (s.reviewId === reviewId && s.status === 'pending') return; // not done yet
   }
 
-  // Все файлы обработаны — формируем результат
+  // All files processed — build result
   const files: ReviewResultFile[] = [];
   const fileSet = reviewFiles.get(reviewId);
   if (!fileSet) return;
 
   let allApproved = true;
-  let allRejected = true;
+  let processed = false;
 
   for (const fp of fileSet) {
     const session = [...sessions.values()].find(s => s.filePath === fp);
 
-    // Pending — не должно случаться (уже проверили выше), но на всякий случай
+    // Pending — shouldn't happen (checked above), but guard anyway
     if (session?.status === 'pending') continue;
 
     let status: 'approved' | 'rejected';
@@ -197,52 +205,46 @@ function checkReviewComplete(reviewId: string) {
       status = 'approved';
       final = fs.readFileSync(path.join(workspaceRoot, fp), 'utf-8');
     } else {
-      // Сессия пропала — fallback (не должно случаться при нормальной работе)
-      try {
-        final = fs.readFileSync(path.join(workspaceRoot, fp), 'utf-8');
-        status = 'approved';
-      } catch {
-        status = 'rejected';
-      }
+      // Session went missing — fallback. Safer to treat as rejected.
+      console.error(`[Pi Companion] checkReviewComplete: session not found for ${fp} in review ${reviewId}`);
+      status = 'rejected';
     }
 
     files.push({ path: fp, status, final });
+    processed = true;
 
-    if (status === 'approved') allRejected = false;
-    else allApproved = false;
+    if (status !== 'approved') allApproved = false;
   }
 
-  // Очистить сессии этого ревью
+  // Clean up sessions for this review
   for (const [key, s] of sessions) {
     if (s.reviewId === reviewId) sessions.delete(key);
   }
 
   const result: ReviewResult = {
     id: reviewId,
-    status: allApproved ? 'approved' : allRejected ? 'rejected' : 'partial',
+    status: !processed ? 'rejected' : allApproved ? 'approved' : 'rejected',
     files,
   };
 
-  // Записать результат
+  // Write result
   const resultPath = path.join(resultsDir, `${reviewId}.json`);
   fs.writeFileSync(resultPath, JSON.stringify(result, null, 2), 'utf-8');
 
-  // Удалить request-файл
+  // Remove request file
   const requestPath = path.join(requestsDir, `${reviewId}.json`);
   try { fs.unlinkSync(requestPath); } catch {}
 
-  // Очистить tmp-директорию
+  // Clean up tmp directory
   const tmpDir = path.join(workspaceRoot, '.pi', 'tmp', reviewId);
   try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
 
-  // Сбросить контекст
-  vscode.commands.executeCommand('setContext', 'piCompanion.isActive', false);
+  // Reset context
+  vscode.commands.executeCommand('setContext', 'piSr.isActive', false);
 
   reviewFiles.delete(reviewId);
 
   vscode.window.showInformationMessage(
-    `Pi Companion: ${result.status === 'approved' ? 'все изменения приняты' :
-      result.status === 'rejected' ? 'все изменения отклонены' :
-      'частично принято'} (${files.filter(f => f.status === 'approved').length}/${files.length})`
+    `Pi Companion: ${result.status === 'approved' ? 'accepted' : 'rejected'} (${files.filter(f => f.status === 'approved').length}/${files.length})`
   );
 }

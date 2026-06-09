@@ -58,7 +58,7 @@ pi-vscode/
 
 - Сессии **не удаляются** до формирования result-файла — `checkReviewComplete` использует `session.status` (`"pending"|"approved"|"rejected"`)
 - `getCurrentSession` ищет по **всем** `visibleTextEditors` (обе стороны диффа), а не только `activeTextEditor`
-- Команды: `pi-companion.approveCurrent|rejectCurrent`
+- Команды: `pi-sr.approveCurrent|rejectCurrent`
 - Контекстный ключ: `piCompanion.isActive`
 
 ## Разработка
