@@ -25,7 +25,7 @@
     "extensions": [
       "./src/index.ts"
     ],
-    "image": "https://raw.githubusercontent.com/Serhioromano/pi-vscode/refs/heads/master/images/pi-vscode.png"
+    "image": "https://raw.githubusercontent.com/Serhioromano/pi-vscode/refs/heads/main/images/pi-vscode.png"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "^0.74.0",
