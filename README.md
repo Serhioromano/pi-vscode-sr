@@ -2,7 +2,7 @@
 
 Secure code review bridge between **Pi coding agent** and **VS Code**. Every file mutation proposed by Pi opens a diff editor — you preview, edit, and approve or reject before anything touches disk.
 
-<img width="800" alt="Pi Defender" src="https://raw.githubusercontent.com/Serhioromano/pi-vscode/refs/heads/master/images/pi-vscode.png">
+<img width="800" alt="Pi Defender" src="https://raw.githubusercontent.com/Serhioromano/pi-vscode/refs/heads/main/images/pi-vscode.png">
 
 
 ## ✨ How it works
@@ -41,4 +41,4 @@ Install from marketplace:
 
 **`serhioromano.vscode-pi-sr`** — Pi Agent Companion
 
-Or search `Pi Companion` in the VS Code Extensions panel.
+Or search `Pi Agent Companion` in the VS Code Extensions panel.
