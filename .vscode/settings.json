@@ -8,5 +8,6 @@
         "plaintext",
         "typescript"
     ],
-    "terminal.integrated.sendKeybindingsToShell": false
+    "terminal.integrated.sendKeybindingsToShell": false,
+    "files.autoSave": "afterDelay"
 }

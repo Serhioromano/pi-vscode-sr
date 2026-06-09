@@ -66,7 +66,6 @@ Polling: check `.pi/review-results/{uuid}.json` every 500ms after writing a requ
 - `pi-companion.approveCurrent` — approve active diff
 - `pi-companion.rejectCurrent` — reject active diff
 - `pi-companion.approveAll` — approve all pending
-- `pi-companion.rejectAll` — reject all pending
 
 ## Context Key
 - `piCompanion.isActive` — set to `true` when any review is active

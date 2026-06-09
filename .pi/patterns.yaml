@@ -26,3 +26,5 @@ strictModeWhiteList:
   - ^wget\b
   - ^git remote\b
   - ^npm install\b
+  - ^npm list\b
+  - ^pi list\b
