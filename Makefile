@@ -75,6 +75,12 @@ publish-pi:
 #   3. Compiles the VS Code extension (npm run compile).
 #   4. Publishes to VS Code Marketplace (vsce publish).
 publish-vscode:
+	@test -n "$$VSCE_PAT" || { \
+		echo "❌ VSCE_PAT environment variable not set."; \
+		echo "   Get a token at https://dev.azure.com/Serhioromano/_usersSettings/tokens"; \
+		echo "   Then run: export VSCE_PAT=<your-token>"; \
+		exit 1; \
+	}
 	@command -v gh >/dev/null 2>&1 || { \
 		echo "❌ GitHub CLI (gh) not found. Install: https://cli.github.com/"; \
 		exit 1; \
@@ -100,7 +106,7 @@ publish-vscode:
 	@cd vscode-ext && npm run compile || { echo "❌ VS Code extension build failed"; exit 1; }
 	# Publish VS Code extension
 	@echo "📦 Publishing VS Code extension..."
-	@cd vscode-ext && npx @vscode/vsce publish || { echo "❌ VS Code extension publish failed"; exit 1; }
+	@cd vscode-ext && npx @vscode/vsce publish -f || { echo "❌ VS Code extension publish failed"; exit 1; }
 	@echo "📦 Published vscode-pi-sr to VS Code Marketplace"
 
 # ── test ───────────────────────────────────────────────────────────────────
