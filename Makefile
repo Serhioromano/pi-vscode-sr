@@ -1,6 +1,19 @@
-.PHONY: publish test
+.PHONY: publish publish-pi publish-vscode test
 
-# Publish a new version to npm + create a GitHub release.
+# ── publish ────────────────────────────────────────────────────────────────
+# Runs both publish-pi and publish-vscode in sequence.
+# Usage: make publish v=<version>
+#   make publish v=patch   — 1.0.1 → 1.0.2
+#   make publish v=minor   — 1.0.1 → 1.1.0
+#   make publish v=major   — 1.0.1 → 2.0.0
+#   make publish v=1.5.0   — explicit version
+publish: publish-pi publish-vscode
+	@echo "🎉 Published! Both packages are live."
+
+# ── publish-pi ─────────────────────────────────────────────────────────────
+# Bumps version, publishes pi-vscode-sr to npm, creates GitHub release.
+# Requires v= argument.
+#
 #   1. Checks gh CLI is installed and authenticated, npm login if needed.
 #   2. Commits any uncommitted changes (if any).
 #   3. Pushes local commits to GitHub (if behind/ahead).
@@ -8,15 +21,10 @@
 #   5. Pushes the commit and tag to GitHub.
 #   6. Publishes the package to npm registry (npm publish).
 #   7. Extracts release notes from CHANGELOG.md and creates a GitHub release via gh.
-#
-# Usage: make publish v=<version>
-#   make publish v=patch   — 1.0.1 → 1.0.2
-#   make publish v=minor   — 1.0.1 → 1.1.0
-#   make publish v=major   — 1.0.1 → 2.0.0
-#   make publish v=1.5.0   — explicit version
-publish:
+publish-pi:
 	@test -n "$(v)" || { \
-		echo "❌ Usage: make publish v=<version>"; echo "   Example: make publish v=patch"; \
+		echo "❌ Usage: make publish-pi v=<version>"; \
+		echo "   Example: make publish-pi v=patch"; \
 		exit 1; \
 	}
 	@command -v gh >/dev/null 2>&1 || { \
@@ -43,7 +51,7 @@ publish:
 	git push origin master --follow-tags
 	@echo "🚀 Pushed to GitHub"
 	npm publish
-	@echo "📦 Published to npm"
+	@echo "📦 Published pi-vscode-sr to npm"
 	@tag=$$(git describe --tags --abbrev=0); \
 		notes_file=$$(mktemp); \
 		awk -v ver="## [$$tag]" 'found && /^## \[/{exit} {print} /^## \[/ && $$0 == ver{found=1}' CHANGELOG.md > "$$notes_file"; \
@@ -56,8 +64,46 @@ publish:
 		fi; \
 		rm -f "$$notes_file"; \
 		echo "🎉 GitHub release created: $$tag"
-	@echo "🎉 Published! All done."
 
+# ── publish-vscode ─────────────────────────────────────────────────────────
+# Syncs version from root package.json into vscode-ext/package.json,
+# compiles and publishes the VS Code extension to Marketplace.
+# No v= argument needed — reads version from package.json.
+#
+#   1. Reads current version from root package.json.
+#   2. Syncs version into vscode-ext/package.json, commits and pushes.
+#   3. Compiles the VS Code extension (npm run compile).
+#   4. Publishes to VS Code Marketplace (vsce publish).
+publish-vscode:
+	@command -v gh >/dev/null 2>&1 || { \
+		echo "❌ GitHub CLI (gh) not found. Install: https://cli.github.com/"; \
+		exit 1; \
+	}
+	@gh auth status >/dev/null 2>&1 || { \
+		echo "❌ Not logged in to GitHub. Run: gh auth login"; \
+		exit 1; \
+	}
+	# Sync version from root package.json
+	@newver=$$(node -p "require('./package.json').version"); \
+		echo "🔄 Syncing version $$newver to VS Code extension..."; \
+		node -e "var p=require('./vscode-ext/package.json'); p.version='$$newver'; require('fs').writeFileSync('./vscode-ext/package.json', JSON.stringify(p, null, 2)+'\n')"
+	@if ! git diff --quiet vscode-ext/package.json; then \
+		git add vscode-ext/package.json; \
+		git commit -m "vscode-ext: sync version $$(node -p "require('./package.json').version")"; \
+		git push origin master; \
+		echo "✅ Version synced and pushed"; \
+	else \
+		echo "✅ Version already in sync"; \
+	fi
+	# Build VS Code extension
+	@echo "🔨 Compiling VS Code extension..."
+	@cd vscode-ext && npm run compile || { echo "❌ VS Code extension build failed"; exit 1; }
+	# Publish VS Code extension
+	@echo "📦 Publishing VS Code extension..."
+	@cd vscode-ext && npx @vscode/vsce publish || { echo "❌ VS Code extension publish failed"; exit 1; }
+	@echo "📦 Published vscode-pi-sr to VS Code Marketplace"
+
+# ── test ───────────────────────────────────────────────────────────────────
 test:
 	@echo "Running tests..."
 	cd /tmp && pi -e ~/www/pi-vscode/src/index.ts --no-extensions

@@ -2,6 +2,12 @@
 
 All notable changes to Pi VS Code will be documented in this file.
 
+## [1.1.0] - 2026-06-09
+
+### Added
+
+- **Abort option in TUI selector** (`🚪 Abort`): calls `ctx.abort()` to immediately stop the agent session. Writes a rejected result file first so the VS Code extension cleans up its diff editors. Useful when the agent is going in the wrong direction and you want to stop it entirely.
+
 ## [1.0.1] - 2026-06-09
 
 ### Fixed

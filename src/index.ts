@@ -77,6 +77,12 @@ async function createReviewAndWait(
 
   // ── Process outcome (return result, never throw) ──
 
+  if (outcome === "abort") {
+    writeSyncResult(resultsDir, uuid, "rejected");
+    ctx.abort();
+    return { status: "rejected" };
+  }
+
   if (outcome === "file-rejected" || outcome === "rejected") {
     return { status: "rejected" };
   }
@@ -141,10 +147,12 @@ async function showTuiSelector(ctx: ExtensionContext, filePath: string): Promise
       "✅ Approve",
       "❌ Reject",
       "⭐ Approve All for this session",
+      "🚪 Abort",
     ],
   );
 
   if (!choice) return "timeout";
+  if (choice.startsWith("🚪")) return "abort";
   if (choice.startsWith("⭐")) return "approve-all";
   if (choice.startsWith("✅")) return "approved";
   if (choice.startsWith("❌")) return "rejected";

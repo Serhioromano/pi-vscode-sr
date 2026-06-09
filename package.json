@@ -6,7 +6,7 @@
   "author": "Serhioromano",
   "repository": "github:Serhioromano/pi-vscode",
   "scripts": {
-    "postinstall": "mkdir -p ~/.pi && cp .pi/patterns.yaml ~/.pi/"
+    "postinstall": "mkdir -p ~/.pi"
   },
   "keywords": [
     "pi",

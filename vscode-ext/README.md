@@ -1,4 +1,4 @@
-# Pi SR — VS Code Extension
+# Pi Companion — VS Code Extension
 
 Code review companion for the [Pi Coding Agent](https://pi.ai). When Pi proposes a file change, this extension opens a diff editor with **✓ Accept** and **✗ Reject** buttons so you can review and approve every modification before it touches your files.
 
@@ -17,21 +17,8 @@ Install the Pi extension first:
 pi install pi-vscode-sr
 ```
 
-Or add it to your Pi config as an extension.
-
-## Development
+Or install locally:
 
 ```bash
-# Compile
-npm run compile
-
-# Watch mode
-npm run watch
-
-# Package as .vsix
-npm run package
+pi install pi-vscode-sr -l
 ```
-
-## License
-
-MIT
