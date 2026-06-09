@@ -35,10 +35,11 @@ publish-pi:
 		echo "❌ Not logged in to GitHub. Run: gh auth login"; \
 		exit 1; \
 	}
-	@npm whoami >/dev/null 2>&1 || { \
+	@npm ping >/dev/null 2>&1 || { \
 		echo "❌ Not logged in to npm."; \
 		echo "   Create a token at https://www.npmjs.com/settings/Serhioromano/tokens"; \
 		echo "   Then run: npm config set //registry.npmjs.org/:_authToken <token>"; \
+		echo "   Or set NPM_TOKEN env variable"; \
 		exit 1; \
 	}
 	@if ! git diff --quiet --exit-code || ! git diff --cached --quiet --exit-code; then \
