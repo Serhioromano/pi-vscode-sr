@@ -44,11 +44,11 @@ publish-pi:
 		git add -A; \
 		git commit -m "Prepare for new version $(v)"; \
 	fi
-	@git pull --rebase origin master
-	@git push origin master
+	@git pull --rebase origin main
+	@git push origin main
 	@newver=$$(npm version $(v) 2>&1 | tail -1); \
 		echo "🏷️  Version bumped: $$newver"
-	git push origin master --follow-tags
+	git push origin main --follow-tags
 	@echo "🚀 Pushed to GitHub"
 	npm publish
 	@echo "📦 Published pi-vscode-sr to npm"
@@ -90,7 +90,7 @@ publish-vscode:
 	@if ! git diff --quiet vscode-ext/package.json; then \
 		git add vscode-ext/package.json; \
 		git commit -m "vscode-ext: sync version $$(node -p "require('./package.json').version")"; \
-		git push origin master; \
+		git push origin main; \
 		echo "✅ Version synced and pushed"; \
 	else \
 		echo "✅ Version already in sync"; \

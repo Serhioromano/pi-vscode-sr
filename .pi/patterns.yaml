@@ -33,3 +33,5 @@ strictModeWhiteList:
   - ^for\b
   - ^do\b
   - ^done\b
+  - ^git branch\b
+  - ^git symbolic-ref\b

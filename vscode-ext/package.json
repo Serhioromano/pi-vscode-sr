@@ -4,6 +4,7 @@
   "description": "Review and approve file changes proposed by Pi agent",
   "version": "0.1.0",
   "publisher": "Serhioromano",
+  "icon": "icon.png",
   "license": "MIT",
   "repository": "github:Serhioromano/pi-vscode",
   "engines": {
