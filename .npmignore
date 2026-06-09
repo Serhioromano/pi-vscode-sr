@@ -1,0 +1,25 @@
+# Pi internal files
+.pi/
+.claude/
+.vscode/
+
+# Pi session artifacts
+pi-session-*.html
+AGENTS.md
+CHANGELOG.md
+Makefile
+README.md
+LICENSE
+PROMPT.md
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI
+.github/
+
+# Dev files
+.mds/
+node_modules/

@@ -1,0 +1,67 @@
+{
+  "name": "vscode-pi-companion",
+  "displayName": "Pi Companion",
+  "description": "Review and approve file changes proposed by Pi agent",
+  "version": "0.1.0",
+  "publisher": "Serhioromano",
+  "license": "MIT",
+  "repository": "github:Serhioromano/pi-vscode",
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "pi-companion.approveCurrent",
+        "title": "Pi Companion: Approve Current File",
+        "icon": "$(check)"
+      },
+      {
+        "command": "pi-companion.rejectCurrent",
+        "title": "Pi Companion: Reject Current File",
+        "icon": "$(close)"
+      },
+      {
+        "command": "pi-companion.approveAll",
+        "title": "Pi Companion: Approve All Files",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "pi-companion.rejectAll",
+        "title": "Pi Companion: Reject All Files",
+        "icon": "$(clear-all)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "pi-companion.approveCurrent",
+          "when": "piCompanion.isActive",
+          "group": "navigation@1"
+        },
+        {
+          "command": "pi-companion.rejectCurrent",
+          "when": "piCompanion.isActive",
+          "group": "navigation@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p tsconfig.json",
+    "watch": "tsc -watch -p tsconfig.json",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "@types/vscode": "^1.82.0",
+    "typescript": "^5.3.0"
+  }
+}
