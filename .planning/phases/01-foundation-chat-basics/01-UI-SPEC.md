@@ -1,10 +1,11 @@
 ---
 phase: 01
 slug: foundation-chat-basics
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-06-14
+reviewed_at: 2026-06-14
 ---
 
 # Phase 01 — UI Design Contract
