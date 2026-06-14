@@ -45,8 +45,8 @@ Pi опрашивает result-file каждые 500ms.
 ## Структура
 
 ```
-pi-vscode/
-├── src/index.ts           # Pi extension (npm пакет pi-vscode)
+pi-vscode-sr/
+├── src/index.ts           # Pi extension (npm пакет pi-vscode-sr)
 ├── dist/                   # скомпилированный JS
 ├── vscode-ext/src/         # VS Code extension (Pi Companion)
 │   ├── extension.ts        # activate, watch, команды, checkReviewComplete

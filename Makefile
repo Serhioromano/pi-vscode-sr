@@ -115,4 +115,4 @@ publish-vscode:
 # ── test ───────────────────────────────────────────────────────────────────
 test:
 	@echo "Running tests..."
-	cd /tmp && pi -e ~/www/pi-vscode/src/index.ts --no-extensions
+	cd /tmp && pi -e ~/www/pi-vscode-sr/src/index.ts --no-extensions

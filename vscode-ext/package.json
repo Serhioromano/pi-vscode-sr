@@ -6,7 +6,7 @@
   "publisher": "Serhioromano",
   "icon": "icon.jpg",
   "license": "MIT",
-  "repository": "github:Serhioromano/pi-vscode",
+  "repository": "github:Serhioromano/pi-vscode-sr",
   "engines": {
     "vscode": "^1.82.0"
   },

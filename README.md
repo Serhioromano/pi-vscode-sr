@@ -2,7 +2,7 @@
 
 Secure code review bridge between **Pi coding agent** and **VS Code**. Every file mutation proposed by Pi opens a diff editor — you preview, edit, and approve or reject before anything touches disk.
 
-<img width="800" alt="Pi Defender" src="https://raw.githubusercontent.com/Serhioromano/pi-vscode/refs/heads/main/images/pi-vscode.png">
+<img width="800" alt="Pi Defender" src="https://raw.githubusercontent.com/Serhioromano/pi-vscode-sr/refs/heads/main/images/pi-vscode.png">
 
 
 ## ✨ How it works

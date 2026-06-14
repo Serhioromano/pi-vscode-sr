@@ -4,7 +4,7 @@ This is a **monorepo** containing two components that work in pair:
 
 ## Components
 
-### 1. Pi Extension (root, npm package `pi-vscode`)
+### 1. Pi Extension (root, npm package `pi-vscode-sr`)
 - **`src/index.ts`** — loaded by `@earendil-works/pi-tui`
 - **Overrides built-in `write` and `edit` tools** — intercepts every file mutation call
 - Instead of writing/editing directly, creates `.pi/review-requests/{uuid}.json` with proposed changes

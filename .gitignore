@@ -5,3 +5,6 @@ vscode-ext/node_modules/
 *.db
 *.db-journal
 .DS_Store
+.pi/review-requests/
+.pi/review-results/
+.pi/tmp/
