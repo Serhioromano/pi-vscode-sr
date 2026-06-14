@@ -154,49 +154,58 @@ function getCurrentSession(): DiffSession | undefined {
     if (s.status === 'pending') pending.push(s);
   }
   if (pending.length === 1) return pending[0];
+
   return undefined;
 }
 
 async function approveCurrent() {
-  const s = getCurrentSession();
-  if (!s) {
-    vscode.window.showErrorMessage('Pi Companion: no review session found. Is the diff editor open?');
-    return;
+  try {
+    const s = getCurrentSession();
+    if (!s) {
+      vscode.window.showErrorMessage('Pi Companion: no review session found. Is the diff editor open?');
+      return;
+    }
+
+    // Read edited content from tmp file
+    const edited = fs.readFileSync(s.tmpFsPath, 'utf-8');
+
+    // Write to original
+    fs.writeFileSync(s.originalFsPath, edited, 'utf-8');
+
+    // Remove tmp
+    try { fs.unlinkSync(s.tmpFsPath); } catch {}
+
+    s.status = 'approved';
+
+    // Close diff tab
+    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+    checkReviewComplete(s.reviewId);
+  } catch (err) {
+    vscode.window.showErrorMessage(`Pi Companion: approve failed — ${err}`);
   }
-
-  // Read edited content from tmp file
-  const edited = fs.readFileSync(s.tmpFsPath, 'utf-8');
-
-  // Write to original
-  fs.writeFileSync(s.originalFsPath, edited, 'utf-8');
-
-  // Remove tmp
-  try { fs.unlinkSync(s.tmpFsPath); } catch {}
-
-  s.status = 'approved';
-
-  // Close diff tab
-  await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-
-  checkReviewComplete(s.reviewId);
 }
 
 async function rejectCurrent() {
-  const s = getCurrentSession();
-  if (!s) {
-    vscode.window.showErrorMessage('Pi Companion: no review session found. Is the diff editor open?');
-    return;
+  try {
+    const s = getCurrentSession();
+    if (!s) {
+      vscode.window.showErrorMessage('Pi Companion: no review session found. Is the diff editor open?');
+      return;
+    }
+
+    // Remove tmp
+    try { fs.unlinkSync(s.tmpFsPath); } catch {}
+
+    s.status = 'rejected';
+
+    // Close diff tab
+    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+    checkReviewComplete(s.reviewId);
+  } catch (err) {
+    vscode.window.showErrorMessage(`Pi Companion: reject failed — ${err}`);
   }
-
-  // Remove tmp
-  try { fs.unlinkSync(s.tmpFsPath); } catch {}
-
-  s.status = 'rejected';
-
-  // Close diff tab
-  await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-
-  checkReviewComplete(s.reviewId);
 }
 
 // ── Handle result written by Pi (terminal TUI) ──────────────────────
@@ -267,74 +276,79 @@ async function closeReviewTabs(reviewId: string) {
 // ─── Complete review ──────────────────────────────────────────────────
 
 function checkReviewComplete(reviewId: string) {
-  // Any pending sessions left for this review?
-  for (const s of sessions.values()) {
-    if (s.reviewId === reviewId && s.status === 'pending') return; // not done yet
-  }
-
-  // All files processed — build result
-  const files: ReviewResultFile[] = [];
-  const fileSet = reviewFiles.get(reviewId);
-  if (!fileSet) return;
-
-  let allApproved = true;
-  let processed = false;
-
-  for (const fp of fileSet) {
-    const session = [...sessions.values()].find(s => s.filePath === fp);
-
-    // Pending — shouldn't happen (checked above), but guard anyway
-    if (session?.status === 'pending') continue;
-
-    let status: 'approved' | 'rejected';
-    let final = '';
-
-    if (session?.status === 'rejected') {
-      status = 'rejected';
-    } else if (session?.status === 'approved') {
-      status = 'approved';
-      final = fs.readFileSync(path.join(workspaceRoot, fp), 'utf-8');
-    } else {
-      // Session went missing — fallback. Safer to treat as rejected.
-      console.error(`[Pi Companion] checkReviewComplete: session not found for ${fp} in review ${reviewId}`);
-      status = 'rejected';
+  try {
+    // Any pending sessions left for this review?
+    for (const s of sessions.values()) {
+      if (s.reviewId === reviewId && s.status === 'pending') return; // not done yet
     }
 
-    files.push({ path: fp, status, final });
-    processed = true;
+    // All files processed — build result
+    const files: ReviewResultFile[] = [];
+    const fileSet = reviewFiles.get(reviewId);
+    if (!fileSet) return;
 
-    if (status !== 'approved') allApproved = false;
+    let allApproved = true;
+    let processed = false;
+
+    for (const fp of fileSet) {
+      const session = [...sessions.values()].find(s => s.filePath === fp);
+
+      // Pending — shouldn't happen (checked above), but guard anyway
+      if (session?.status === 'pending') continue;
+
+      let status: 'approved' | 'rejected';
+      let final = '';
+
+      if (session?.status === 'rejected') {
+        status = 'rejected';
+      } else if (session?.status === 'approved') {
+        status = 'approved';
+        // fp should be absolute from resolveSafe(), but guard against relative paths
+        const filePath = fp.startsWith('/') ? fp : path.join(workspaceRoot, fp);
+        final = fs.readFileSync(filePath, 'utf-8');
+      } else {
+        // Session went missing — fallback. Safer to treat as rejected.
+        status = 'rejected';
+      }
+
+      files.push({ path: fp, status, final });
+      processed = true;
+
+      if (status !== 'approved') allApproved = false;
+    }
+
+    // Clean up sessions for this review
+    for (const [key, s] of sessions) {
+      if (s.reviewId === reviewId) sessions.delete(key);
+    }
+
+    const result: ReviewResult = {
+      id: reviewId,
+      status: !processed ? 'rejected' : allApproved ? 'approved' : 'rejected',
+      files,
+    };
+
+    // Write result
+    const resultPath = path.join(resultsDir, `${reviewId}.json`);
+    fs.writeFileSync(resultPath, JSON.stringify(result, null, 2), 'utf-8');
+
+    // Remove request file
+    const requestPath = path.join(requestsDir, `${reviewId}.json`);
+    try { fs.unlinkSync(requestPath); } catch {}
+
+    // Clean up tmp directory
+    const tmpDir = path.join(workspaceRoot, '.pi', 'tmp', reviewId);
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+
+    // Reset context
+    vscode.commands.executeCommand('setContext', 'piSr.isActive', false);
+
+    reviewFiles.delete(reviewId);
+
+    vscode.window.showInformationMessage(
+      `Pi Companion: ${result.status === 'approved' ? 'accepted' : 'rejected'} (${files.filter(f => f.status === 'approved').length}/${files.length})`
+    );
+  } catch (err) {
+    vscode.window.showErrorMessage(`Pi Companion: review completion failed — ${err}`);
   }
-
-  // Clean up sessions for this review
-  for (const [key, s] of sessions) {
-    if (s.reviewId === reviewId) sessions.delete(key);
-  }
-
-  const result: ReviewResult = {
-    id: reviewId,
-    status: !processed ? 'rejected' : allApproved ? 'approved' : 'rejected',
-    files,
-  };
-
-  // Write result
-  const resultPath = path.join(resultsDir, `${reviewId}.json`);
-  fs.writeFileSync(resultPath, JSON.stringify(result, null, 2), 'utf-8');
-
-  // Remove request file
-  const requestPath = path.join(requestsDir, `${reviewId}.json`);
-  try { fs.unlinkSync(requestPath); } catch {}
-
-  // Clean up tmp directory
-  const tmpDir = path.join(workspaceRoot, '.pi', 'tmp', reviewId);
-  try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-
-  // Reset context
-  vscode.commands.executeCommand('setContext', 'piSr.isActive', false);
-
-  reviewFiles.delete(reviewId);
-
-  vscode.window.showInformationMessage(
-    `Pi Companion: ${result.status === 'approved' ? 'accepted' : 'rejected'} (${files.filter(f => f.status === 'approved').length}/${files.length})`
-  );
 }

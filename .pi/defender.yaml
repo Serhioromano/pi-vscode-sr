@@ -1,4 +1,5 @@
 strictModeWhiteList:
+  - ^stat\b
   - ^find\b
   - ^grep -n\b
   - ^cd\b

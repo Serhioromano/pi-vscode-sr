@@ -4,6 +4,10 @@ All notable changes to Pi VS Code will be documented in this file.
 
 ## [Unreleased] - 2026-06-14
 
+### Fixed
+
+- **Approve button in VS Code fails with ENOENT (doubled path):** `checkReviewComplete` used `path.join(workspaceRoot, fp)` to read the approved file back for the result JSON, but `fp` from `fileSet` was sometimes relative (missing leading `/`), causing a doubled path like `/home/user/project/home/user/project/file.ts`. Fixed by using `fp` directly when it starts with `/`, falling back to `path.join` for relative paths. Added diagnostic logging to `getCurrentSession`, `approveCurrent`, `rejectCurrent`, and `checkReviewComplete` to catch similar issues faster.
+
 ### Changed
 
 - **TUI shows instantly — no more Phase 1 delay:** Removed the 2-second head start (Phase 1) where the extension polled VS Code before showing the TUI. The TUI selector now appears immediately and races with VS Code in parallel from the start. `AbortController` still dismisses the TUI if VS Code responds first. Empty-file handling in `pollResultFile` now uses the standard poll interval (500ms) instead of a separate 200ms sleep.
