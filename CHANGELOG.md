@@ -14,7 +14,7 @@ All notable changes to Pi VS Code will be documented in this file.
 
 ### Added
 
-- **Rethink option in TUI selector** (`💭 Rethink`): opens a text input dialog where the user can type feedback for the agent (e.g., "use async/await instead of promise chains"). The changes are not applied, the VS Code diff is closed (rejected result), and the tool returns `isError: true` with the user's feedback text. The agent sees `🔄 file.ts — rethinking requested: "..."` and can incorporate the feedback in its next attempt. Enables a smooth, iterative refinement workflow without leaving the terminal.
+    - **Rethink option in TUI selector** (`💭 Rethink`): opens a text input dialog where the user can type feedback for the agent (e.g., "use async/await instead of promise chains"). The changes are not applied, the VS Code diff is closed (rejected result), and the tool returns `isError: true` with the user's feedback text. The agent sees `🔄 file.ts — rethinking requested: "..."` and can incorporate the feedback in its next attempt. Enables a smooth, iterative refinement workflow without leaving the terminal.
 - **`.vscodeignore` for VS Code extension:** Added `.vscodeignore` to `vscode-ext/` to exclude `src/`, `node_modules/`, `tsconfig.json`, and dev files from the `.vsix` package. Only `dist/`, `package.json`, `icon.jpg`, and `README.md` are now packaged — reducing VSIX size and preventing accidental inclusion of build artifacts.
 
 ### Fixed
