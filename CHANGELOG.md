@@ -2,7 +2,7 @@
 
 All notable changes to Pi VS Code will be documented in this file.
 
-## [Unreleased] - 2026-06-14
+## [1.4.2] - 2026-06-14
 
 ### Fixed
 

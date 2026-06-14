@@ -24,6 +24,12 @@ You can also approve/reject from the diff tab.
 
 ## 📦 Installation
 
+> [!IMPORTANT]
+> Add into `.gitignore` file
+> - .pi/review-requests/
+> - .pi/review-results/
+> - .pi/tmp/
+
 ### 1. Pi Extension
 
 ```bash

@@ -1,7 +1,7 @@
 {
   "name": "vscode-pi-sr",
   "displayName": "Pi Agent Companion",
-  "description": "Review and approve file changes proposed by Pi agent",
+  "description": "Review and approve file changes proposed by Pi agent. Also controllable from the terminal TUI (Approve, Reject, Rethink, Approve All, Abort) — both interfaces work in parallel.",
   "version": "1.4.1",
   "publisher": "Serhioromano",
   "icon": "icon.png",
