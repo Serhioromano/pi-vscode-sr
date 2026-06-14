@@ -23,6 +23,8 @@ Code review companion for the [Pi Coding Agent](https://pi.ai). When Pi proposes
 4. You can respond in either interface — they race, and whichever answers first wins
 5. Your decision is written to `.pi/review-results/{uuid}.json` — Pi reads it and either applies or discards the change
 
+<img width="800" alt="Pi Defender" src="https://raw.githubusercontent.com/Serhioromano/pi-vscode-sr/refs/heads/main/images/example.jpg">
+
 ## Prerequisites
 
 Install the Pi extension first:

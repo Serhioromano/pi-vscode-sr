@@ -22,6 +22,8 @@ Secure code review bridge between **Pi coding agent** and **VS Code**. Every fil
 
 You can also approve/reject from the diff tab.
 
+<img width="800" alt="Pi Defender" src="https://raw.githubusercontent.com/Serhioromano/pi-vscode-sr/refs/heads/main/images/example.jpg">
+
 ## 📦 Installation
 
 > [!IMPORTANT]
