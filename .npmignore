@@ -24,8 +24,5 @@ PROMPT.md
 .mds/
 node_modules/
 
-# Source files (use compiled dist/ instead)
-src/
-
 # VS Code extension (separate package)
 vscode-ext/
