@@ -2,7 +2,7 @@
   "name": "vscode-pi-sr",
   "displayName": "Pi Agent Companion",
   "description": "Review and approve file changes proposed by Pi agent",
-  "version": "1.1.10",
+  "version": "1.4.0",
   "publisher": "Serhioromano",
   "icon": "icon.png",
   "license": "MIT",
