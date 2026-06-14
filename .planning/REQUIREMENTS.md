@@ -79,19 +79,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 0 | Pending |
-| FOUND-02 | Phase 0 | Pending |
+| FOUND-01 | Phase 1 | Pending |
+| FOUND-02 | Phase 1 | Pending |
 | FOUND-03 | Phase 1 | Pending |
 | FOUND-04 | Phase 1 | Pending |
-| FOUND-05 | Phase 0 | Pending |
-| CHAT-01 | Phase 2 | Pending |
+| FOUND-05 | Phase 1 | Pending |
+| CHAT-01 | Phase 1 | Pending |
 | CHAT-02 | Phase 2 | Pending |
 | CHAT-03 | Phase 2 | Pending |
-| CHAT-04 | Phase 2 | Pending |
-| CHAT-05 | Phase 0 | Pending |
+| CHAT-04 | Phase 1 | Pending |
+| CHAT-05 | Phase 2 | Pending |
 | REVW-01 | Phase 3 | Pending |
 | REVW-02 | Phase 3 | Pending |
-| REVW-03 | Phase 0 | Pending |
+| REVW-03 | Phase 3 | Pending |
 | REVW-04 | Phase 3 | Pending |
 | COMP-01 | Phase 4 | Pending |
 | COMP-02 | Phase 4 | Pending |
@@ -106,4 +106,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-06-14*
-*Last updated: 2026-06-14 after initial definition*
+*Last updated: 2026-06-14 after roadmap creation*
