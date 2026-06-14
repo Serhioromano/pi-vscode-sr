@@ -8,3 +8,4 @@ vscode-ext/node_modules/
 .pi/review-requests/
 .pi/review-results/
 .pi/tmp/
+.pi/.vscode-ready
