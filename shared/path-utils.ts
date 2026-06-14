@@ -11,6 +11,10 @@ export function resolveSafe(cwd: string, filePath: string): string {
   }
   // Strip leading/trailing slashes from cwd for comparison
   const cwdClean = cwd.replace(/\/+$/, '').replace(/^\//, '');
+  // If filePath equals cwdClean exactly, return cwd directly
+  if (filePath === cwdClean) {
+    return cwd.replace(/\/+$/, '');
+  }
   // If filePath starts with cwdClean/ (LLM forgot the leading /),
   // strip it so resolve doesn't double.
   if (filePath.startsWith(cwdClean + '/')) {
