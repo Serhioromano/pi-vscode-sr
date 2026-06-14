@@ -29,7 +29,7 @@ This roadmap transforms the pi-vscode-sr VS Code extension from a file-IPC-and-t
 **Plans**: 5 plansPlans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md -- Foundation: shared/ module + test infra + git branch
+- [x] 01-01-PLAN.md -- Foundation: shared/ module + test infra + git branch
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -96,7 +96,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Chat Basics | 0/5 | Not started | - |
+| 1. Foundation + Chat Basics | 1/5 | In Progress|  |
 | 2. Rich Chat Experience | 0/0 | Not started | - |
 | 3. Visual Review Controls | 0/0 | Not started | - |
 | 4. Inline Completions | 0/0 | Not started | - |
