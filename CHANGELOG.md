@@ -2,6 +2,12 @@
 
 All notable changes to Pi VS Code will be documented in this file.
 
+## [Unreleased] - 2026-06-14
+
+### Fixed
+
+- **TUI selector stays on screen after VS Code responds:** When the user approved/rejected changes in VS Code's diff editor, the `pollResultFile` detected the result file and `Promise.race` resolved correctly, but the TUI selector remained visible in the terminal because `ctx.ui.select()` was still pending. Fixed by passing an `AbortSignal` to `ctx.ui.select()` via `ExtensionUIDialogOptions` and calling `tuiController.abort()` when the poll wins the race. The TUI now dismisses immediately when VS Code responds first.
+
 ## [1.1.0] - 2026-06-09
 
 ### Added

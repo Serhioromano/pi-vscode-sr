@@ -36,7 +36,7 @@ Pi опрашивает result-file каждые 500ms.
 
 Инструменты **не кидают исключения**. `createReviewAndWait` возвращает `{ status: "rejected" }`, execute tool-a возвращает `{ isError: true }`. Агент видит явную ошибку, файл не модифицирован.
 
-**Двухфазный подход:** Фаза 1 (2s, опрос каждые 100ms) — опрос VS Code без TUI. 20 проверок за 2 секунды. Если VS Code ответил — TUI не показывается. Между фазами — синхронный `existsSync` на result-файл (ловим гонку между интервалами опроса). Фаза 2 — TUI + параллельный опрос (каждые 500ms). `pollResultFile` обёрнут в try-catch на случай частично записанного/пустого файла. Параметр `interval` настраивает частоту опроса.
+**Двухфазный подход:** Фаза 1 (2s, опрос каждые 100ms) — опрос VS Code без TUI. 20 проверок за 2 секунды. Если VS Code ответил — TUI не показывается. Между фазами — синхронный `existsSync` на result-файл (ловим гонку между интервалами опроса). Фаза 2 — TUI + параллельный опрос (каждые 500ms). Используется `AbortController`: если poll выигрывает гонку (VS Code ответил первым), `tuiController.abort()` принудительно закрывает TUI селектор. `pollResultFile` обёрнут в try-catch на случай частично записанного/пустого файла.
 
 **Approve All** работает только в рамках одного промпта (`message_start`/`message_end` сбрасывают).
 
@@ -62,21 +62,3 @@ pi-vscode/
 - `getCurrentSession` ищет по **всем** `visibleTextEditors` (обе стороны диффа), а не только `activeTextEditor`
 - Команды: `pi-sr.approveCurrent|rejectCurrent`
 - Контекстный ключ: `piCompanion.isActive`
-
-## Разработка
-
-```bash
-# Компиляция Pi extension (корень)
-npx tsc -p tsconfig.json
-
-# Компиляция VS Code extension
-cd vscode-ext && npx tsc -p tsconfig.json
-
-# Отладка VS Code extension: F5 в корне проекта
-
-# Публикация npm пакета
-make publish v=patch
-
-# Публикация .vsix
-cd vscode-ext && npx @vscode/vsce package
-```

@@ -6,3 +6,4 @@
 2. Pi should look at Pi documentation for best practices
 
 3. После выполнинея задачи не надо публиковать расширение Pi
+4. Не нужно изменять версию в `package.json`

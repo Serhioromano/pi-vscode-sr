@@ -70,10 +70,20 @@ async function createReviewAndWait(
   }
 
   // Phase 2: show TUI and keep polling VS Code in parallel (every 500ms)
-  const tuiPromise = showTuiSelector(ctx, filePath);
+  // Use AbortController so we can dismiss the TUI if VS Code responds first.
+  const tuiController = new AbortController();
+  const tuiPromise = showTuiSelector(ctx, filePath, { signal: tuiController.signal });
   const pollPromise = pollResultFile(resultPath, deadline, 500);
 
   const outcome = await Promise.race([tuiPromise, pollPromise]);
+
+  // If poll resolved first (VS Code responded), dismiss the TUI selector.
+  // Without this, the TUI stays on screen even after the review is done.
+  if (outcome === "file-approved" || outcome === "file-rejected") {
+    tuiController.abort();
+    // Wait for TUI to close gracefully (aborted select resolves quickly)
+    await tuiPromise.catch(() => {});
+  }
 
   // ── Process outcome (return result, never throw) ──
 
@@ -140,7 +150,11 @@ async function pollResultFile(resultPath: string, deadline: number, interval = 5
   return "timeout";
 }
 
-async function showTuiSelector(ctx: ExtensionContext, filePath: string): Promise<string> {
+async function showTuiSelector(
+  ctx: ExtensionContext,
+  filePath: string,
+  opts?: { signal?: AbortSignal },
+): Promise<string> {
   const choice = await ctx.ui.select(
     `📝 Review: ${filePath}`,
     [
@@ -149,6 +163,7 @@ async function showTuiSelector(ctx: ExtensionContext, filePath: string): Promise
       "⭐ Approve All for this session",
       "🚪 Abort",
     ],
+    opts,
   );
 
   if (!choice) return "timeout";
