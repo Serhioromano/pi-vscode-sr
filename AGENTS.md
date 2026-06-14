@@ -50,7 +50,8 @@ pi-vscode-sr/
 ├── dist/                   # скомпилированный JS
 ├── vscode-ext/src/         # VS Code extension (Pi Companion)
 │   ├── extension.ts        # activate, watch, команды, checkReviewComplete
-│   └── types.ts            # ReviewRequest, ReviewResult, DiffSession
+│   ├── types.ts            # ReviewRequest, ReviewResult, DiffSession
+│   └── .vscodeignore       # исключает src/, node_modules/ из VSIX
 ├── .vscode/                # F5 debug (launch.json + tasks.json)
 ├── AGENTS.md / README.md / CHANGELOG.md
 └── Makefile                # make publish v=patch|minor|major

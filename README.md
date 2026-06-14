@@ -26,13 +26,13 @@ You can also approve/reject from the diff tab.
 ### 1. Pi Extension
 
 ```bash
-pi install pi-vscode-sr
+pi install npm:pi-vscode-sr
 ```
 
 Or install locally:
 
 ```bash
-pi install pi-vscode-sr -l
+pi install npm:pi-vscode-sr -l
 ```
 
 ### 2. VS Code Extension

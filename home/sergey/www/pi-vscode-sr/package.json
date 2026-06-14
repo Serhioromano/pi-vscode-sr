@@ -1,0 +1,35 @@
+{
+  "name": "pi-vscode-sr",
+  "version": "1.1.10",
+  "description": "Code diff assistant for VS Code.",
+  "license": "MIT",
+  "author": "Serhioromano",
+  "repository": "github:Serhioromano/pi-vscode-sr",
+  "scripts": {
+    "postinstall": "mkdir -p ~/.pi"
+  },
+  "keywords": [
+    "pi",
+    "ai-agent",
+    "pi-extension",
+    "pi-package",
+    "security",
+    "protection",
+    "vs-code-extension"
+  ],
+  "dependencies": {
+    "@earendil-works/pi-tui": "^0.74.0",
+    "yaml": "^2.7.0"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ],
+    "image": "https://raw.githubusercontent.com/Serhioromano/pi-vscode-sr/refs/heads/main/images/pi-vscode.png"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.74.0",
+    "@types/node": "^25.7.0",
+    "typescript": "^6.0.3"
+  }
+}
