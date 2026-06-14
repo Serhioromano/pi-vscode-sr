@@ -36,11 +36,13 @@ Pi опрашивает result-file каждые 500ms.
 
 Инструменты **не кидают исключения**. `createReviewAndWait` возвращает `{ status: "rejected" }`, execute tool-a возвращает `{ isError: true }`. Агент видит явную ошибку, файл не модифицирован.
 
-**Двухфазный подход:** Фаза 1 (2s, опрос каждые 100ms) — опрос VS Code без TUI. 20 проверок за 2 секунды. Если VS Code ответил — TUI не показывается. Между фазами — синхронный `existsSync` на result-файл (ловим гонку между интервалами опроса). Фаза 2 — TUI + параллельный опрос (каждые 500ms). Используется `AbortController`: если poll выигрывает гонку (VS Code ответил первым), `tuiController.abort()` принудительно закрывает TUI селектор. `pollResultFile` обёрнут в try-catch на случай частично записанного/пустого файла.
+**TUI + VS Code в гонке:** TUI селектор показывается **моментально** и параллельно опрашивает result-файл (каждые 500ms). Используется `AbortController`: если poll выигрывает гонку (VS Code ответил первым), `tuiController.abort()` принудительно закрывает TUI селектор. При пустом result-файле (ещё записывается) используется стандартный интервал (500ms) вместо отдельной задержки. `pollResultFile` обёрнут в try-catch на случай частично записанного/повреждённого файла.
 
 **Approve All** работает только в рамках одного промпта (`message_start`/`message_end` сбрасывают).
 
 **Abort** (`🚪`) в TUI селекторе вызывает `ctx.abort()` — немедленно останавливает сессию агента. Перед этим записывает rejected result-файл, чтобы VS Code убрал diff editor.
+
+**Rethink** (`💭`) в TUI селекторе открывает диалог ввода текста. Пользователь вводит промпт-фидбек (например, «используй async/await вместо цепочек промисов»). Изменения не применяются, в VS Code diff закрывается (rejected result), а инструмент возвращает `isError: true` с текстом фидбека. Агент видит сообщение `🔄 file.ts — rethinking requested: "..."` и может учесть замечания при следующей попытке.
 
 ## Структура
 
@@ -62,4 +64,5 @@ pi-vscode-sr/
 - Сессии **не удаляются** до формирования result-файла — `checkReviewComplete` использует `session.status` (`"pending"|"approved"|"rejected"`)
 - `getCurrentSession` ищет по **всем** `visibleTextEditors` (обе стороны диффа), а не только `activeTextEditor`
 - Команды: `pi-sr.approveCurrent|rejectCurrent`
-- Контекстный ключ: `piCompanion.isActive`
+- Контекстный ключ: `piSr.isActive`
+- **Закрытие diff-вкладок:** `resultsWatcher` следит за `review-results/` — когда Pi пишет result-файл из терминала (Approve/Reject/Rethink/Abort), VS Code автоматически закрывает все diff-вкладки для этого ревью. `closeReviewTabs()` ищет вкладки по `modifiedUri.fsPath` через `vscode.window.tabGroups`.

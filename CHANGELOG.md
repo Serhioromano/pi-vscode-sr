@@ -4,12 +4,19 @@ All notable changes to Pi VS Code will be documented in this file.
 
 ## [Unreleased] - 2026-06-14
 
+### Changed
+
+- **TUI shows instantly — no more Phase 1 delay:** Removed the 2-second head start (Phase 1) where the extension polled VS Code before showing the TUI. The TUI selector now appears immediately and races with VS Code in parallel from the start. `AbortController` still dismisses the TUI if VS Code responds first. Empty-file handling in `pollResultFile` now uses the standard poll interval (500ms) instead of a separate 200ms sleep.
+
 ### Added
 
+- **Rethink option in TUI selector** (`💭 Rethink`): opens a text input dialog where the user can type feedback for the agent (e.g., "use async/await instead of promise chains"). The changes are not applied, the VS Code diff is closed (rejected result), and the tool returns `isError: true` with the user's feedback text. The agent sees `🔄 file.ts — rethinking requested: "..."` and can incorporate the feedback in its next attempt. Enables a smooth, iterative refinement workflow without leaving the terminal.
 - **`.vscodeignore` for VS Code extension:** Added `.vscodeignore` to `vscode-ext/` to exclude `src/`, `node_modules/`, `tsconfig.json`, and dev files from the `.vsix` package. Only `dist/`, `package.json`, `icon.jpg`, and `README.md` are now packaged — reducing VSIX size and preventing accidental inclusion of build artifacts.
 
 ### Fixed
 
+- **Doubled path when LLM passes absolute-looking path without leading slash:** When the LLM passed a path like `home/user/project/file.ts` (missing the leading `/`), `resolve()`/`path.join()` treated it as relative and produced `/home/user/project/home/user/project/file.ts` — creating files at wrong nested locations. Fixed in three places: (1) Pi extension: `resolveSafe()` in tool handlers for final write path, (2) Pi extension: normalize path in review-request JSON so VS Code receives correct absolute path, (3) VS Code extension: `resolveSafe()` in `handleRequest` and normalized path stored in `fileSet` + session — belt and suspenders.
+- **Diff tabs not closing when decision made in terminal:** When the user approved, rejected, aborted, or rethought via the terminal TUI selector, the VS Code diff tabs remained open indefinitely. Root cause: `writeSyncResult` was missing for `"approved"` and `"rejected"` TUI outcomes — the result file was only written for `"approve-all"`, `"abort"`, and `"rethink"`. Fixed by splitting the `"file-approved"|"approved"` and `"file-rejected"|"rejected"` branches so TUI-originated decisions also write a result file. Combined with the new `resultsWatcher` in the VS Code extension, diff tabs now close automatically within ~1 second of any terminal-side decision.
 - **TUI selector stays on screen after VS Code responds:** When the user approved/rejected changes in VS Code's diff editor, the `pollResultFile` detected the result file and `Promise.race` resolved correctly, but the TUI selector remained visible in the terminal because `ctx.ui.select()` was still pending. Fixed by passing an `AbortSignal` to `ctx.ui.select()` via `ExtensionUIDialogOptions` and calling `tuiController.abort()` when the poll wins the race. The TUI now dismisses immediately when VS Code responds first.
 
 ## [1.1.0] - 2026-06-09

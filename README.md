@@ -16,6 +16,7 @@ Secure code review bridge between **Pi coding agent** and **VS Code**. Every fil
 |--------|--------|
 | ✅ **Approve** | Apply this file's changes |
 | ❌ **Reject** | Discard this file's changes — agent sees an error and must retry |
+| 💭 **Rethink** | Open a text input dialog to give the agent feedback — e.g. «use async/await instead of promise chains». Changes are not applied, agent sees your feedback and can retry with corrections. |
 | ⭐ **Approve All** | Auto-approve every future change for this session |
 | 🚪 **Abort** | Stop the agent session immediately |
 

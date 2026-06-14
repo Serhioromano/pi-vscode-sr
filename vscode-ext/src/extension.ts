@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -8,6 +9,7 @@ let workspaceRoot: string;
 let requestsDir: string;
 let resultsDir: string;
 let watcher: fs.FSWatcher | null = null;
+let resultsWatcher: fs.FSWatcher | null = null;
 
 // key = tmpFsPath (URI.fsPath of the active editor)
 const sessions = new Map<string, DiffSession>();
@@ -29,10 +31,18 @@ export function activate(context: vscode.ExtensionContext) {
   fs.mkdirSync(resultsDir, { recursive: true });
 
   // Watch for new review requests
-  watcher = fs.watch(requestsDir, (_, filename) => {
+  watcher = fs.watch(requestsDir, (_event: string, filename: string | null) => {
     if (!filename?.endsWith('.json')) return;
     const fp = path.join(requestsDir, filename);
     if (fs.existsSync(fp)) handleRequest(fp);
+  });
+
+  // Watch for review results (written by Pi from terminal TUI).
+  // When Pi writes a result, close all diff tabs and clean up.
+  resultsWatcher = fs.watch(resultsDir, (_event: string, filename: string | null) => {
+    if (!filename?.endsWith('.json')) return;
+    const fp = path.join(resultsDir, filename);
+    if (fs.existsSync(fp)) handleResult(fp);
   });
 
   // Recover incomplete reviews
@@ -49,9 +59,22 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
   watcher?.close();
+  resultsWatcher?.close();
 }
 
 // ─── Handle new review request ────────────────────────────────────────
+
+/** Normalize a file path from review request, handling LLM paths without leading /. */
+function resolveSafe(filePath: string): string {
+  if (filePath.startsWith('/')) return filePath; // Already absolute
+  // If filePath starts with cwd-without-leading-slash (LLM forgot the /),
+  // strip the duplicate prefix so path.join doesn't double it.
+  const cwdClean = workspaceRoot.replace(/\/+$/, '').replace(/^\//, '');
+  if (filePath.startsWith(cwdClean + '/')) {
+    filePath = filePath.substring(cwdClean.length + 1);
+  }
+  return path.join(workspaceRoot, filePath);
+}
 
 function handleRequest(requestPath: string) {
   let req: ReviewRequest;
@@ -72,16 +95,18 @@ function handleRequest(requestPath: string) {
 
   // For each file: create tmp, open diff
   req.files.forEach(file => {
-    fileSet.add(file.path);
+    // Normalize path (LLM may pass cwd-relative without leading /)
+    const normalizedPath = resolveSafe(file.path);
+    fileSet.add(normalizedPath);
 
     const tmpDir = path.join(workspaceRoot, '.pi', 'tmp', req.id);
     fs.mkdirSync(tmpDir, { recursive: true });
 
-    const tmpPath = path.join(tmpDir, path.basename(file.path));
+    const tmpPath = path.join(tmpDir, path.basename(normalizedPath));
     fs.writeFileSync(tmpPath, file.proposed, 'utf-8');
 
     // Create original file if it doesn't exist
-    const origPath = path.join(workspaceRoot, file.path);
+    const origPath = normalizedPath;
     if (!fs.existsSync(origPath)) {
       fs.mkdirSync(path.dirname(origPath), { recursive: true });
       fs.writeFileSync(origPath, file.original || '', 'utf-8');
@@ -89,7 +114,7 @@ function handleRequest(requestPath: string) {
 
     const session: DiffSession = {
       reviewId: req.id,
-      filePath: file.path,
+      filePath: normalizedPath,
       originalFsPath: origPath,
       tmpFsPath: tmpPath,
       status: 'pending',
@@ -172,6 +197,71 @@ async function rejectCurrent() {
   await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
   checkReviewComplete(s.reviewId);
+}
+
+// ── Handle result written by Pi (terminal TUI) ──────────────────────
+
+async function handleResult(resultPath: string) {
+  let result: ReviewResult;
+  try {
+    result = JSON.parse(fs.readFileSync(resultPath, 'utf-8'));
+  } catch {
+    return; // malformed or partially written — ignore
+  }
+
+  if (!result.id) return;
+
+  // Close all diff tabs for this review
+  await closeReviewTabs(result.id);
+
+  // Clean up sessions
+  for (const [key, s] of sessions) {
+    if (s.reviewId === result.id) sessions.delete(key);
+  }
+
+  // Clean up request file
+  const requestPath = path.join(requestsDir, `${result.id}.json`);
+  try { fs.unlinkSync(requestPath); } catch {}
+
+  // Clean up tmp directory
+  const tmpDir = path.join(workspaceRoot, '.pi', 'tmp', result.id);
+  try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+
+  // Reset context
+  reviewFiles.delete(result.id);
+
+  // Check if any reviews are still active
+  const anyPending = [...reviewFiles.keys()].length > 0;
+  vscode.commands.executeCommand('setContext', 'piSr.isActive', anyPending);
+}
+
+// ── Close all diff tabs for a review ─────────────────────────────────
+
+async function closeReviewTabs(reviewId: string) {
+  try {
+    const groups = vscode.window.tabGroups?.all;
+    if (!groups) return;
+    const allTabs = groups.flatMap(g => g?.tabs ?? []);
+    for (const tab of allTabs) {
+      try {
+        const input = tab.input;
+        if (!input || typeof input !== 'object') continue;
+        // Diff tabs have 'original' and 'modified' properties
+        const diffInput = input as Record<string, unknown>;
+        if (!('modified' in diffInput)) continue;
+        const modifiedUri = diffInput.modified;
+        if (!(modifiedUri instanceof vscode.Uri)) continue;
+        const session = sessions.get(modifiedUri.fsPath);
+        if (session?.reviewId === reviewId) {
+          await vscode.window.tabGroups.close(tab);
+        }
+      } catch {
+        // Individual tab close failure — ignore and continue
+      }
+    }
+  } catch {
+    // tabGroups API unavailable or failed — ignore
+  }
 }
 
 // ─── Complete review ──────────────────────────────────────────────────
