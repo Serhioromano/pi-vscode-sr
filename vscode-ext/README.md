@@ -38,11 +38,11 @@ Install the Pi extension first:
 
 
 ```bash
-pi install pi-vscode-sr
+pi install npm:pi-vscode-sr
 ```
 
 Or install locally:
 
 ```bash
-pi install pi-vscode-sr -l
+pi install npm:pi-vscode-sr -l
 ```
