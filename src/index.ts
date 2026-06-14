@@ -10,6 +10,7 @@ import { dirname, join, resolve } from "path";
 const sessionReviewIds = new Set<string>();
 const sessionApproveAll = new Set<string>(); // review IDs auto-approved
 let projectCwd: string | null = null;
+let vscodeNotOpenWarned = false;
 
 
 // ─── Helper: check if VS Code is watching this project ─────────────
@@ -55,46 +56,36 @@ async function createReviewAndWait(
     }
 
     // Detect whether VS Code is open with this project.
-    // If not: skip writing review-requests (orphan files) and polling (wasted cycles).
-    // Fall back to TUI-only review.
-    const vscodeReady = isVscodeReady(ctx.cwd);
-
-    let pollPromise: Promise<{ action: string; prompt?: string }>;
-    let tuiController: AbortController;
-
-    if (vscodeReady) {
-        const requestsDir = join(ctx.cwd, ".pi", "review-requests");
-        mkdirSync(requestsDir, { recursive: true });
-
-        const reviewRequest = {
-            id: uuid,
-            title: description,
-            files: [{ path: normalizedPath, original, proposed, description }],
-        };
-        writeFileSync(join(requestsDir, `${uuid}.json`), JSON.stringify(reviewRequest, null, 2), "utf-8");
-        ctx.ui.notify(`📝 Review: ${filePath} — check VS Code diff`, "info");
-
-        const resultPath = join(resultsDir, `${uuid}.json`);
-        const deadline = Date.now() + 10 * 60 * 1000;
-        tuiController = new AbortController();
-        pollPromise = pollResultFile(resultPath, deadline, 500);
-    } else {
-        ctx.ui.notify(`📝 Review: ${filePath} — VS Code not open, terminal only`, "info");
-        tuiController = new AbortController();
-        // Never resolves — VS Code can't respond
-        pollPromise = new Promise(() => {});
+    // If not: bypass review entirely — direct write, no TUI, no polling.
+    // Warning is shown once at session_start, not here on every tool call.
+    if (!isVscodeReady(ctx.cwd)) {
+        return { status: "approved", final: proposed };
     }
 
-    // Show TUI selector (always, regardless of VS Code status)
+    // VS Code is open — create review request, poll for results, show TUI
+    const requestsDir = join(ctx.cwd, ".pi", "review-requests");
+    mkdirSync(requestsDir, { recursive: true });
+
+    const reviewRequest = {
+        id: uuid,
+        title: description,
+        files: [{ path: normalizedPath, original, proposed, description }],
+    };
+    writeFileSync(join(requestsDir, `${uuid}.json`), JSON.stringify(reviewRequest, null, 2), "utf-8");
+    ctx.ui.notify(`📝 Review: ${filePath} — check VS Code diff`, "info");
+
+    // TUI selector races with VS Code result polling
+    const resultPath = join(resultsDir, `${uuid}.json`);
+    const deadline = Date.now() + 10 * 60 * 1000;
+    const tuiController = new AbortController();
     const tuiPromise = showTuiSelector(ctx, filePath, { signal: tuiController.signal });
+    const pollPromise = pollResultFile(resultPath, deadline, 500);
 
     const outcome = await Promise.race([tuiPromise, pollPromise]);
 
-    // If poll resolved first (VS Code responded), dismiss the TUI selector.
-    // Without this, the TUI stays on screen even after the review is done.
+    // If poll resolved first (VS Code responded), dismiss the TUI selector
     if (outcome.action === "file-approved" || outcome.action === "file-rejected") {
         tuiController.abort();
-        // Wait for TUI to close gracefully (aborted select resolves quickly)
         await tuiPromise.catch(() => { });
     }
 
@@ -428,18 +419,32 @@ function registerEditOverride(pi: ExtensionAPI) {
 // ─── Extension entry point ───────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
-    // Reset review ID tracking on new session
+    // Reset review ID tracking on new session.
+    // Re-check VS Code availability — user may have opened/closed VS Code since last session.
     pi.on("session_start", () => {
         sessionReviewIds.clear();
+        sessionApproveAll.clear();
+        vscodeNotOpenWarned = false;
+
+        const cwd = process.cwd();
+        if (!isVscodeReady(cwd)) {
+            console.warn(
+                "⚠️  VS Code not detected — working without diff review. " +
+                "All file changes will be applied directly. " +
+                "Open this project in VS Code with Serhioromano.vscode-pi-sr extension " +
+                "installed to enable visual review."
+            );
+            vscodeNotOpenWarned = true;
+        }
     });
 
-    // Reset Approve All on message boundaries
-    const clearApproveAll = () => {
+    // Approve All persists across turns within one prompt.
+    // before_agent_start fires once per user prompt — clears here.
+    pi.on("before_agent_start", () => {
         sessionApproveAll.clear();
-    };
-    pi.on("message_start", clearApproveAll);
+    });
+
     pi.on("message_end", () => {
-        clearApproveAll();
         cleanupPiDir();
     });
 

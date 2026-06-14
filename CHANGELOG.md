@@ -2,15 +2,20 @@
 
 All notable changes to Pi VS Code will be documented in this file.
 
+## [1.4.7] - 2026-06-14
+
+### Fixed
+
+- **Approve All now persists correctly across multiple tool calls within one prompt:** Previously `sessionApproveAll` was cleared on `message_start`/`message_end`, but the PI framework fires these events between tool-call turns within the same prompt — causing the selector to reappear for the next file. Fixed by clearing `sessionApproveAll` only on `before_agent_start` (fires once per user prompt).
+
 ## [1.4.3] - 2026-06-14
 
 ### Added
 
-- **VS Code detection via heartbeat file `.pi/.vscode-ready`:** Pi extension now checks whether VS Code is open with the current project before creating review requests. VS Code extension writes a timestamp (Unix ms) to `.pi/.vscode-ready` on activation and refreshes it every 15 seconds via `setInterval`. On deactivation, the file is deleted. Pi extension's `isVscodeReady()` checks that the file exists AND the timestamp is fresh (≤ 30 seconds). If VS Code is not detected:
-  - Review requests are NOT written to `.pi/review-requests/` (avoiding orphan files)
-  - Polling for VS Code results is skipped (no wasted 10-minute timeout)
-  - TUI selector is shown immediately — terminal-only review flow
-- **Heartbeat guards against stale lock file:** If VS Code crashes or is killed (SIGKILL), `deactivate()` doesn't run, but the 30-second freshness check on Pi's side detects the stale timestamp and correctly falls back to TUI-only mode.
+- **VS Code detection via heartbeat file `.pi/.vscode-ready`:** Pi extension checks whether VS Code is open with the current project before creating review requests. VS Code extension writes a timestamp to `.pi/.vscode-ready` on activation and refreshes it every 15 seconds via `setInterval`. On deactivation, the file is deleted. Pi extension's `isVscodeReady()` checks that the file exists AND the timestamp is fresh (≤ 30 seconds).
+- **Bypass review when VS Code is not open:** If VS Code is not detected, `createReviewAndWait` skips review entirely and returns `approved` immediately — the agent writes files directly without any TUI or polling. This is the natural behavior: the user chose to work without VS Code, so visual diff review is unavailable.
+- **One-time warning on session start:** When VS Code is not detected, a single warning notification is shown: `⚠️ VS Code not detected — working without diff review. All file changes will be applied directly. Open this project in VS Code to enable visual review.` The flag resets on each `session_start`.
+- **Heartbeat guards against stale lock file:** If VS Code crashes or is killed (SIGKILL), `deactivate()` doesn't run, but the 30-second freshness check on Pi's side detects the stale timestamp and correctly falls back to direct-write mode.
 
 ## [1.4.2] - 2026-06-14
 
