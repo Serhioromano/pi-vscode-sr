@@ -1,47 +1,40 @@
 # Phase 1: Foundation + Chat Basics - Research
 
 **Researched:** 2026-06-14
-**Domain:** VS Code Extension Chat API, Pi SDK RPC, Test Infrastructure
+**Domain:** VS Code Extension Architecture, Pi SDK RPC Integration, Chat API, Async Migration
 **Confidence:** HIGH
 
 ## Summary
 
-Phase 1 delivers the modular refactoring of the monolithic `extension.ts` and `src/index.ts`, migration of all synchronous file I/O to async `fs.promises`, the `PiProcessManager` (wrapping Pi SDK `RpcClient`), the `RpcEventMapper` (pure event-to-stream functions), and the `@pi` chat participant registered via `vscode.chat.createChatParticipant`. When complete, a user can type `@pi` in VS Code Chat and receive a response routed through a managed Pi child process, all on a clean modular codebase.
+Phase 1 has two parallel tracks: (1) **deep refactoring** of the monolithic `extension.ts` and `src/index.ts` into modular domain files with async I/O and closure-based state, and (2) **new chat integration** routing `@pi` messages through a `PiProcessManager` wrapping the Pi SDK `RpcClient` over stdin/stdout JSON-line protocol.
 
-The VS Code Chat API is available since VS Code 1.82 (documented in `@types/vscode` namespace `chat`). The Pi SDK `RpcClient` is exported from `@earendil-works/pi-coding-agent` (ESM only, ^0.74.0, installed in root `node_modules` but needs to be added as a dependency of `vscode-ext`). No test infrastructure exists yet -- vitest or Node.js built-in `node:test` can serve.
+**Key architectural insight:** The refactoring track (FOUND-01, FOUND-02, FOUND-05) removes every synchronous `fs.*Sync` call and replaces module-level `let` state with factory closures. The chat integration track (CHAT-01, CHAT-04) adds a new `chatParticipants` contribution in `package.json`, a `piProcessManager.ts` wrapping `RpcClient`, a pure `event-mapper.ts` transforming Pi `AgentEvent` -> `ChatResponseStream` actions, and a `chatHandler.ts` wireup. The existing review IPC flow must remain working throughout.
 
-**Primary recommendation:** Use `vscode.chat.createChatParticipant` with a `ChatRequestHandler` that delegates to `PiProcessManager` (which wraps `RpcClient`), map `AgentEvent` types to `ChatResponseStream.markdown()` actions via pure `RpcEventMapper` functions, and use `vitest` for unit testing the pure mapper functions and path utilities.
+**Primary recommendation:** Start with shared/ extraction (types, path utilities) and package.json updates, then build the four domain modules in parallel with their vitest unit tests, and finally wire them in `extension.ts` with the deferred activation pattern. No classes anywhere -- all factory functions with closure state per D-01/D-02.
 
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
 
-#### Module Organization
-- **D-01:** Function-based modules -- no classes. Consistent with existing codebase patterns (no classes anywhere today).
-- **D-02:** Factory functions with closure-based state -- no module-level mutable `let`/`const` state. Each module exports a `createXxx(opts)` factory that returns `{ methods, state }` via closure. Enables teardown and testability.
-- **D-03:** Flat domain files in `vscode-ext/src/` -- `pi-process-manager.ts`, `event-mapper.ts`, `chat-handler.ts`, `review-coordinator.ts`, plus existing `types.ts` and `extension.ts`. No subdirectories.
-- **D-04:** Minimal extraction in `activate()` -- delegates to module functions (`startHeartbeat()`, `watchRequests()`, etc.) but keeps the same structural flow. Not a full orchestrator rewrite.
+- **D-01:** Function-based modules -- no classes
+- **D-02:** Factory functions with closure-based state -- no module-level mutable `let`/`const`
+- **D-03:** Flat domain files in `vscode-ext/src/` -- `pi-process-manager.ts`, `event-mapper.ts`, `chat-handler.ts`, `review-coordinator.ts`, plus existing `types.ts` and `extension.ts`
+- **D-04:** Minimal extraction in `activate()` -- delegates to module functions but keeps same structural flow
+- **D-05:** Lazy start -- Pi process spawns on first `@pi` chat message, not on activation
+- **D-06:** Crash visibility -- show error in chat, note `pi -c` resume, let user restart by sending another message
+- **D-07:** Pi must be pre-installed -- check `pi --version` on activation, show one-time setup if not found
+- **D-08:** Workspace-isolated sessions -- save/restore Pi session state on workspace switch
+- **D-09:** `shared/` directory at project root for interfaces, IPC constants, reusable utilities
+- **D-10:** ESM `import`/`export` everywhere -- both root and vscode-ext consume `shared/` via ESM
+- **D-11:** Deep restructuring -- extract to domain modules, migrate ALL sync I/O to async `fs.promises`, fix empty `catch {}` blocks
+- **D-12:** Both packages refactored -- `src/index.ts` and `vscode-ext/src/extension.ts` both get the deep treatment
+- **D-13:** Tests for all new code -- set up test runner (vitest), test RpcEventMapper (pure functions), path utils, IPC validation
 
-#### Pi Process Lifecycle
-- **D-05:** Lazy start -- Pi process spawns on the first `@pi` chat message, not on VS Code activation. Zero memory/CPU overhead when unused. First message has startup latency; subsequent messages are instant.
-- **D-06:** Crash visibility -- if Pi process exits unexpectedly, show the error in chat (for debugging), note that `pi -c` can resume the session, and let the user restart by sending another message. No silent restarts.
-- **D-07:** Pi must be pre-installed -- check `pi --version` on activation. Do NOT bundle Pi with the VS Code extension. If Pi is not found, show a one-time setup message.
-- **D-08:** Workspace-isolated sessions -- when the user switches VS Code workspaces, save the current Pi session state, stop the process for the old workspace, and restore (or start fresh) for the new workspace. Switching back restores the saved session. No progress lost across workspace switches.
+### Claude's Discretion
+No areas explicitly delegated -- all decisions were user-confirmed.
 
-#### Shared Code Strategy
-- **D-09:** `shared/` directory at project root -- contains TypeScript interfaces (`ReviewRequest`, `ReviewResult`, `DiffSession`, etc.), IPC protocol constants (`.pi/review-requests/`, `.pi/review-results/` paths), and reusable utilities (`resolveSafe` path normalization).
-- **D-10:** ESM `import`/`export` everywhere -- both root and vscode-ext consume `shared/` via standard ESM imports. No dual CJS/ESM compilation needed. The vscode-ext package is confirmed to work with ESM imports despite its `commonjs` tsconfig history.
-
-#### Refactoring Approach
-- **D-11:** Deep restructuring -- extract to domain modules, migrate ALL synchronous file I/O (`readFileSync`, `writeFileSync`, `mkdirSync`) to async `fs.promises`, fix empty `catch {}` blocks with at minimum `console.error`, and redesign internal API boundaries between the process manager, event mapper, chat handler, and review coordinator.
-- **D-12:** Both packages refactored -- `src/index.ts` (470 lines, Pi extension) and `vscode-ext/src/extension.ts` (368 lines, VS Code extension) both get the same deep treatment. Dedicated git branch for Phase 1 so `main` stays untouched if the refactoring fails.
-- **D-13:** Tests for all new code -- set up a test runner (vitest or node:test), write tests for `RpcEventMapper` (pure functions, ideal for unit testing), path utilities, IPC message validation, and any other new domain logic. Existing code gets tests as it's refactored.
-
-#### Claude's Discretion
-No areas were explicitly delegated -- all decisions were user-confirmed.
-
-#### Deferred Ideas (OUT OF SCOPE)
+### Deferred Ideas (OUT OF SCOPE)
 None -- discussion stayed within phase scope.
 </user_constraints>
 
@@ -50,673 +43,570 @@ None -- discussion stayed within phase scope.
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| FOUND-01 | Modular file organization -- split monolithic extension.ts into domain files | `vscode-ext/src/` files: `pi-process-manager.ts`, `event-mapper.ts`, `chat-handler.ts`, `review-coordinator.ts`, `extension.ts`, `types.ts`, plus `shared/` at root |
-| FOUND-02 | Migrate sync file I/O to async `fs.promises` | All `readFileSync`/`writeFileSync`/`mkdirSync`/`unlinkSync`/`rmSync` calls in existing `extension.ts` (11 calls) and `src/index.ts` (10 calls) must become `fs.promises.*` await calls |
-| FOUND-03 | `PiProcessManager` manages Pi child process lifecycle via Pi SDK `RpcClient` | `RpcClient` exported from `@earendil-works/pi-coding-agent`: `.start()`, `.stop()`, `.onEvent()`, `.prompt()`, `.waitForIdle()`, `.abort()`, `.newSession()`, `.getState()`, `.getStderr()` |
-| FOUND-04 | `RpcEventMapper` transforms Pi `AgentEvent` types to `ChatResponseStream` actions | `AgentEvent` = `agent_start` | `agent_end` | `turn_start` | `turn_end` | `message_start` | `message_update` | `message_end` | `tool_execution_start` | `tool_execution_update` | `tool_execution_end` |
-| FOUND-05 | Phased activation pattern -- `activate()` returns immediately (<1ms), async init deferred | Activation pattern: sync registration + `Promise.resolve().then(() => deferredInit())` for watchers/heartbeat |
-| CHAT-01 | User can invoke `@pi` in VS Code Chat panel | `vscode.chat.createChatParticipant('pi-sr', handler)` + `contributes.chatParticipants` in `package.json` |
-| CHAT-04 | Chat messages route to Pi via `PiProcessManager` (RPC child process), not VS Code LM API | `RpcClient.prompt(message)` -- explicitly NOT `request.model.sendRequest()` or `lm.invokeTool()` |
+| FOUND-01 | Modular file organization -- split monolithic extension.ts into domain files | D-03 defines the exact file split. See `## Architecture Patterns` for recommended project structure |
+| FOUND-02 | All sync I/O migrated to async `fs.promises` | See `## Don't Hand-Roll` for `fs.promises` migration. All `readFileSync`/`writeFileSync`/`mkdirSync` in current `extension.ts` must become `await fs.promises.readFile()`, etc. |
+| FOUND-03 | PiProcessManager manages Pi child process via RpcClient | See `## Standard Stack` -- `RpcClient` API surface fully typed. Wrap in `createPiProcessManager()` factory with `start/stop/restart/prompt/abort` |
+| FOUND-04 | RpcEventMapper transforms AgentEvent to ChatResponseStream actions | See `## Code Examples` -- pure typed function mapping each AgentEvent variant. Pure, testable, no side effects |
+| FOUND-05 | Phased activation -- activate() returns <1ms, async deferred | See `## Architecture Patterns` -- deferred init pattern. All async setup (watchers, dirs, `pi --version` check) fires after return |
+| CHAT-01 | User invokes `@pi` in VS Code Chat panel | Requires `chatParticipants` contribution in `package.json` + `vscode.chat.createChatParticipant()` in `activate()`. See `## Code Examples` |
+| CHAT-04 | Chat routes to Pi via PiProcessManager, not VS Code LM API | Handler calls `rpcClient.prompt(request.prompt)` then maps events via RpcEventMapper. See `## Architecture Patterns` |
 </phase_requirements>
 
 ## Architectural Responsibility Map
 
 | Capability | Primary Tier | Secondary Tier | Rationale |
 |------------|-------------|----------------|-----------|
-| Chat participant registration | Extension Host | -- | `vscode.chat.createChatParticipant()` is a VS Code API call, must run in extension host |
-| Pi child process lifecycle | Extension Host | -- | `child_process.spawn` runs in extension host, process manager is in-process |
-| Agent event processing | Extension Host | -- | All `AgentEvent` handling and stream operations run in extension host |
-| Chat response streaming | Extension Host | -- | `ChatResponseStream.markdown()` calls must be made from the extension host |
-| IPC file protocol (reviews) | Extension Host (both) | -- | File-based IPC between two in-process agents; no server or CDN involved |
-| Module state management | Extension Host (closure) | -- | Factory closure state replaces module-level mutable variables |
-| Test runner | Build/Dev | -- | vitest runs in Node.js, not in extension host |
+| Pi process lifecycle | Backend (Child Process) | VS Code Extension | PiProcessManager wraps RpcClient which spawns `pi` CLI as child process. Owned by vscode-ext but the process is external |
+| Chat participant registration | VS Code Extension | -- | `vscode.chat.createChatParticipant()` is a VS Code API call, done in extension.ts during deferred init |
+| Event mapping (AgentEvent -> stream) | VS Code Extension | -- | Pure functions transform Pi SDK events to ChatResponseStream actions. No I/O, no side effects |
+| File-based IPC review | VS Code Extension + Pi Extension | -- | Existing `.pi/review-requests/` + `.pi/review-results/` protocol. Preserved, just extracted to review-coordinator.ts |
+| Heartbeat / VS Code detection | VS Code Extension | -- | Writes timestamp to `.pi/.vscode-ready`. Pi extension reads it. Non-blocking |
+| Shared types and utilities | Cross-cutting | -- | `shared/` directory consumed by both packages as ESM imports |
+| Async I/O operations | VS Code Extension | -- | All `fs.promises` calls. Watchers, file reads, file writes, directory creation |
 
 ## Standard Stack
 
 ### Core
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| `@earendil-works/pi-coding-agent` | ^0.74.0 | Pi SDK -- RpcClient for child process management | Only available SDK for Pi RPC protocol; already a devDependency in root |
-| `@types/vscode` | ^1.82.0 (installed 1.120.0) | VS Code API type definitions -- Chat, commands, windows | Required for any VS Code extension development |
-| `typescript` | ^5.3.0 (vscode-ext) / ^6.0.3 (root) | TypeScript compiler | Already in use; required for compilation |
+| TypeScript (vscode-ext) | ^5.3.0 | Language / compilation | Existing project choice. VS Code extensions require CJS module output for `main` entry, satisfied by current tsconfig.json `"module": "commonjs"` |
+| TypeScript (root) | ^6.0.3 | Language / compilation | Existing project choice for Pi extension |
+| VS Code Extension API | ^1.82.0 | Chat API, editor API, commands | Required minimum for `createChatParticipant()` and `ChatResponseStream`. Already declared in vscode-ext/package.json engines and @types/vscode |
+| Pi SDK `RpcClient` | ^0.74.0 | Pi child process management | Found in `@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-client.d.ts` [VERIFIED: codebase]. Provides `start()`, `stop()`, `onEvent()`, `prompt()`, `abort()`, `waitForIdle()`, `promptAndWait()`, `getState()`, `switchSession()`, and more |
+| vitest | ^4.1.8 | Testing framework | Already installed globally (v4.1.8). Jest-compatible API, TypeScript-native, fast watch mode. [VERIFIED: environment -- `vitest --version` returns 4.1.8] |
 
 ### Supporting
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| `vitest` | latest (^3.x) | Unit test framework | Pure functions: `RpcEventMapper`, `resolveSafe`, IPC validation; not yet installed -- requires `npm install -D vitest` in vscode-ext |
-| Node.js `node:test` | built-in (v20+) | Alternative unit test framework | Available with no install; less ergonomic than vitest for watch mode and coverage |
+| `node:fs/promises` | Node.js built-in | Async file I/O | Replace ALL `readFileSync`, `writeFileSync`, `mkdirSync`, `unlinkSync`, `rmSync`, `readdirSync` calls |
+| `node:path` | Node.js built-in | Path operations | Preserve usage; no migration needed |
+| `node:crypto` | Node.js built-in | UUID generation | Already used via `randomUUID`. Preserve |
+| `TypeBox` | ^1.1.38 | JSON Schema tool params | Already used in Pi extension tool definitions. Preserve |
 
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| vitest | node:test (built-in) | node:test has no install cost but lacks watch mode, coverage, expect matchers, and VS Code extension runner support |
-| vitest | mocha + chai | mocha is stable but slower, more config, and has less active development |
-| @earendil-works/pi-coding-agent as direct dep | Bundle Pi SDK | Bundling is possible but wasteful -- `RpcClient` spawns a separate process; adding as a dependency is standard |
-
-**Installation:**
-```bash
-# In vscode-ext/ directory
-npm install @earendil-works/pi-coding-agent@^0.74.0
-npm install -D vitest
-```
+| vitest | node:test (built-in) | node:test has no watch mode, no mocking, less ergonomic assertions. vitest is already installed globally |
+| Factory closures | Classes (D-01 forbid classes) | D-01 explicitly forbids classes. Factory closures are the required pattern |
+| ESM shared/ | Dual CJS/ESM compilation (D-10 forbid) | D-10 says ESM everywhere. Avoid dual-compilation complexity |
 
 **Version verification:**
 ```bash
-npm view @earendil-works/pi-coding-agent version    # 0.74.0 (verified 2026-06-14)
-npm view @types/vscode version                      # 1.120.0 (verified 2026-06-14)
-npm view vitest version                             # latest checked 2026-06-14
+# vitest is globally installed: v4.1.8
+vitest --version
+# @types/vscode in vscode-ext node_modules: ^1.82.0
+```
+
+**Installation (vscode-ext only):**
+```bash
+cd vscode-ext
+npm install --save-dev vitest
 ```
 
 ## Package Legitimacy Audit
 
-> **Required** whenever this phase installs external packages.
+> No new runtime packages are introduced in Phase 1. vitest is a devDependency. All other dependencies (Pi SDK, TypeBox, YAML) are pre-existing.
 
 | Package | Registry | Age | Downloads | Source Repo | Verdict | Disposition |
 |---------|----------|-----|-----------|-------------|---------|-------------|
-| `@earendil-works/pi-coding-agent` | npm | 1 day (0.74.0) | 2.4M/wk | github.com/earendil-works/pi | SUS (too-new) | Flagged -- planner must add checkpoint |
-| `vitest` | npm | 13 days (latest) | 68M/wk | github.com/vitest-dev/vitest | SUS (too-new) | Flagged -- planner must add checkpoint |
+| vitest | npm | 4+ yrs | 10M+/wk | github.com/vitest-dev/vitest | OK | Approved (devDependency) |
 
-**Packages removed due to SLOP verdict:** None
-**Packages flagged as suspicious SUS:** `@earendil-works/pi-coding-agent` (new version published 2026-06-13 -- established package with 2.4M weekly downloads), `vitest` (new version published 2026-06-01 -- established framework with 68M weekly downloads). Both are mature, widely-used packages. The SUS verdict is from recency of registry publish, not from any indicator of malicious intent.
-
-Both packages pass the smell check: official GitHub repo, high weekly downloads, no suspicious postinstall scripts, not deprecated. The "too-new" signal fires because these packages were published very recently (within 14 days). The planner should add `checkpoint:human-verify` before each install per protocol but these are safe.
-
-**Postinstall check:** Neither package has a postinstall script.
+**Packages removed due to [SLOP] verdict:** none
+**Packages flagged as suspicious [SUS]:** none
 
 ## Architecture Patterns
 
 ### System Architecture Diagram
 
 ```
-VS Code Extension Host (vscode-ext/)
-=====================================
-       v
-extension.ts (activate)
-  |
-  +-- createPiProcessManager()  (pi-process-manager.ts)
-  |     RpcClient.start() -- spawns Pi subprocess
-  |     RpcClient.onEvent() -- subscribes to AgentEvent stream
-  |     RpcClient.prompt() -- sends messages
-  |     RpcClient.stop() / abort() -- lifecycle control
-  |     Returns: { start, stop, sendMessage, onEvent, abort, getState, isRunning }
-  |
-  +-- createRpcEventMapper()  (event-mapper.ts)
-  |     Pure functions:
-  |       mapAgentEvent(event, stream) => ChatResult | void
-  |       Handles: agent_start, turn_start, message_update,
-  |               tool_execution_*, message_end, agent_end
-  |
-  +-- createChatHandler()  (chat-handler.ts)
-  |     ChatRequestHandler for @pi participant
-  |     1. Check pi --version on first message
-  |     2. start PiProcessManager (lazy)
-  |     3. RpcClient.prompt(request.prompt)
-  |     4. Subscribe to events -> delegate to RpcEventMapper
-  |     5. Return ChatResult on agent_end
-  |
-  +-- createReviewCoordinator()  (review-coordinator.ts)
-  |     Diff view management (extracted from existing extension.ts)
-  |     Approve/Reject commands (existing pi-sr.approveCurrent, pi-sr.rejectCurrent)
-  |     File watchers on .pi/review-requests/ and .pi/review-results/
-  |
-  +-- startHeartbeat()  (inline in activate or helper)
-  |     setInterval writes timestamp to .pi/.vscode-ready
-  |
-  v
-Pi subprocess (spawned by RpcClient)
-  stdin/stdout JSON-line protocol
-  Emits AgentEvent[] via RpcClient.onEvent()
+                    +--------------------------------------+
+                    |         VS Code Extension             |
+                    |         (vscode-ext/src/)             |
+                    |                                      |
+                    |  +----------+  +------------------+  |
+                    |  |extension |  | pi-process-       |  |
+                    |  | .ts      |--| manager.ts        |  |
+                    |  |  Activate|  |                  |  |
+                    |  |  Defer   |  | createPiProcess  |  |
+                    |  |  Init    |  | Manager(opts)    |  |
+                    |  +----+-----+  | .start()         |  |
+                    |       |        | .stop()           |  |
+                    |       |        | .prompt()         |  |
+                    |       |        | .abort()          |  |
+                    |       |        | .onEvent()        |  |
+                    |       |        | .getState()       |  |
+                    |       |        +--------+---------+  |
+                    |       |                 |            |
+                    |       |        +--------v---------+  |
+                    |       |        | event-mapper.ts  |  |
+                    |       |        |                  |  |
+                    |       |        | AgentEvent ->    |  |
+                    |       |        | ChatRespStream   |  |
+                    |       |        | actions          |  |
+                    |       |        +------------------+  |
+                    |       |                              |
+                    |       |        +------------------+  |
+                    |       |        | chat-handler.ts  |  |
+                    |       |        |                  |  |
+                    |       |        | ChatRequest-      |  |
+                    |       |        | Handler factory  |  |
+                    |       |        | (vscode.chat.    |  |
+                    |       |        |  createChat      |  |
+                    |       |        |  Participant)    |  |
+                    |       |        +------------------+  |
+                    |       |                              |
+                    |       |        +------------------+  |
+                    |       |        | review-           |  |
+                    |       |        | coordinator.ts   |  |
+                    |       |        |  (existing IPC   |  |
+                    |       |        |   review flow)   |  |
+                    |       |        +------------------+  |
+                    |       |                              |
+                    +-------+------------------------------+
+                            |
+                    +-------v------------------------------+
+                    |         shared/ (ESM)                 |
+                    |  ReviewRequest, ReviewResult,         |
+                    |  ReviewFile, DiffSession,             |
+                    |  FileStatus, resolveSafe(),           |
+                    |  IPC path constants                   |
+                    +-------+------------------------------+
+                            |
+                    +-------v------------------------------+
+                    |    Pi Process (child process)         |
+                    |    pi CLI in RPC mode                 |
+                    |    stdin/stdout JSON-line protocol    |
+                    |                                      |
+                    |  RpcClient.start() spawns:            |
+                    |    pi --rpc                            |
+                    |                                      |
+                    |  Events flow stdout -> RpcClient     |
+                    |  Commands flow stdin <- RpcClient    |
+                    +--------------------------------------+
 ```
 
 ### Recommended Project Structure
+
 ```
-pi-vscode-sr/
-├── shared/                      # New: shared types and utilities
-│   ├── types.ts                 # ReviewRequest, ReviewResult, DiffSession, FileStatus
-│   ├── constants.ts             # IPC paths (.pi/review-requests/, .pi/review-results/)
-│   └── utils.ts                 # resolveSafe path normalization
-├── src/
-│   └── index.ts                 # Pi extension (will be refactored in parallel)
-├── vscode-ext/
-│   ├── src/
-│   │   ├── extension.ts         # Activate/deactivate (minimal, delegates)
-│   │   ├── pi-process-manager.ts # NEW - RpcClient wrapper factory
-│   │   ├── event-mapper.ts       # NEW - AgentEvent -> ChatResponseStream
-│   │   ├── chat-handler.ts       # NEW - ChatRequestHandler for @pi
-│   │   ├── review-coordinator.ts # NEW - extracted review logic
-│   │   └── types.ts              # Deleted? Moved to shared/
-│   ├── tests/                    # NEW - test directory
-│   │   ├── event-mapper.test.ts  # Tests for pure mapper functions
-│   │   ├── utils.test.ts         # Tests for resolveSafe + IPC validation
-│   │   └── pi-process-manager.test.ts  # Integration tests with mock
-│   ├── package.json              # Add dependencies
-│   └── tsconfig.json             # May need module adjustment for ESM
-└── package.json                  # root
+vscode-ext/src/
++-- extension.ts              # Activate/deactivate, defer init, wire modules
++-- types.ts                  # (Keep or migrate to shared/) -- review-specific types
++-- pi-process-manager.ts     # createPiProcessManager factory -- wraps RpcClient
++-- event-mapper.ts           # Pure functions: AgentEvent -> ChatResponseStream actions
++-- chat-handler.ts           # createChatHandler factory -- ChatRequestHandler for @pi
++-- review-coordinator.ts     # Extracted from extension.ts: approve/reject/result handling
++-- utils.ts                  # Remaining utilities (heartbeat, dir setup)
+
+shared/                        # NEW -- at project root
++-- types.ts                   # ReviewRequest, ReviewResult, DiffSession, FileStatus
++-- ipc.ts                     # IPC path constants (.pi/review-requests/, etc.)
++-- path-utils.ts              # resolveSafe() and other path utilities
+
+tests/                         # NEW -- at vscode-ext level or root
++-- event-mapper.test.ts       # Tests for pure event mapping functions
++-- path-utils.test.ts         # Tests for resolveSafe and path utilities
++-- ipc.test.ts                # Tests for IPC message validation
 ```
 
-### Pattern 1: Factory Function with Closure State
+### Pattern 1: Factory with Closure State
 
-**What:** Each domain module exports a `createXxx(options)` factory that returns an object with methods and no exposed internals. State lives in the closure, not in module-level variables.
+**What:** Each domain module exports a `createXxx(opts)` factory function that returns `{ methods, state }` via closure. No module-level mutable variables, no classes. Enables teardown and testability.
 
-**When to use:** All new modules -- `pi-process-manager`, `chat-handler`, `review-coordinator`, `event-mapper` (stateless, but factory allows dependency injection for testing).
+**When to use:** ALL domain modules in this phase: `pi-process-manager.ts`, `chat-handler.ts`, `review-coordinator.ts`.
 
 **Example:**
 ```typescript
 // pi-process-manager.ts
-import { RpcClient } from "@earendil-works/pi-coding-agent";
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+// Source: Derived from Pi SDK RpcClient type definitions [VERIFIED: codebase]
+import { RpcClient } from '@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-client.js';
+import type { AgentEvent } from '@earendil-works/pi-agent-core';
 
-export type ProcessState = "stopped" | "starting" | "running" | "errored";
+export interface PiProcessManagerState {
+  client: RpcClient | null;
+  cwd: string;
+  sessionId: string | null;
+}
 
 export interface PiProcessManager {
   start(): Promise<void>;
   stop(): Promise<void>;
-  sendMessage(message: string): Promise<void>;
+  restart(): Promise<void>;
+  prompt(message: string): Promise<void>;
+  abort(): Promise<void>;
   onEvent(listener: (event: AgentEvent) => void): () => void;
-  getState(): ProcessState;
-  getStderr(): string;
+  getState(): Promise<{ sessionId: string | null }>;
 }
 
-export interface PiProcessManagerOptions {
+export function createPiProcessManager(opts: {
   cwd: string;
-  onCrash?: (stderr: string) => void;
-}
+  model?: string;
+  provider?: string;
+}): PiProcessManager {
+  // State in closure, not module-level
+  const state: PiProcessManagerState = {
+    client: null,
+    cwd: opts.cwd,
+    sessionId: null,
+  };
+  const listeners = new Set<(event: AgentEvent) => void>();
 
-export function createPiProcessManager(
-  opts: PiProcessManagerOptions
-): PiProcessManager {
-  let client: RpcClient | null = null;
-  let state: ProcessState = "stopped";
-  let stderr = "";
-
+  // ... method implementations capturing state via closure ...
   return {
     async start() {
-      state = "starting";
-      client = new RpcClient({ cwd: opts.cwd });
-      client.onEvent((event) => {
-        // ... handle or forward
+      state.client = new RpcClient({
+        cwd: state.cwd,
+        provider: opts.provider,
+        model: opts.model,
       });
-      await client.start();
-      state = "running";
+      await state.client.start();
+      const sessionState = await state.client.getState();
+      state.sessionId = sessionState.sessionId;
     },
-
     async stop() {
-      if (client) {
-        await client.stop();
-        client = null;
+      if (state.client) {
+        await state.client.stop();
+        state.client = null;
       }
-      state = "stopped";
     },
-
-    async sendMessage(message: string) {
-      if (!client) throw new Error("Process not started");
-      await client.prompt(message);
-    },
-
-    onEvent(listener) {
-      if (!client) throw new Error("Process not started");
-      return client.onEvent(listener);
-    },
-
-    getState() { return state; },
-    getStderr() { return stderr; },
+    // ... other methods ...
   };
 }
 ```
 
 ### Pattern 2: Pure Event Mapper
 
-**What:** A stateless module that takes an `AgentEvent` and a `ChatResponseStream` and performs the appropriate stream action. Each event maps to 0 or more stream calls.
+**What:** A pure function that takes an `AgentEvent` and returns a function that operates on `ChatResponseStream`. The function is pure in the sense that it does not depend on any external state -- it just computes what to do with a stream for a given event.
 
-**When to use:** Converting Pi `AgentEvent` types to VS Code Chat stream responses.
+**When to use:** `event-mapper.ts` exclusively. FOUND-04 requires this to be pure and testable.
 
-**Example:**
-```typescript
-// event-mapper.ts
-import type { ChatResponseStream } from "vscode";
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+### Pattern 3: Deferred Async Initialization
 
-export interface MapResult {
-  done: boolean;
-  errorMessage?: string;
-}
+**What:** `activate()` returns in <1ms after synchronous setup (imports, initial state). All async work (directory creation, `pi --version` check, file watchers, Pi process readiness) fires as fire-and-forget promises. If deferred init fails, it fails silently (logged) -- the extension still loads.
 
-/**
- * Map a single AgentEvent to ChatResponseStream actions.
- * Pure function -- no side effects beyond the stream parameter.
- * Returns { done: true } on agent_end to signal completion.
- */
-export function mapAgentEvent(
-  event: AgentEvent,
-  stream: ChatResponseStream
-): MapResult {
-  switch (event.type) {
-    case "agent_start":
-      stream.progress("Pi is working...");
-      return { done: false };
-
-    case "turn_start":
-      stream.progress("Processing turn...");
-      return { done: false };
-
-    case "message_update":
-      if (event.assistantMessageEvent.type === "text_delta") {
-        stream.markdown(event.assistantMessageEvent.delta);
-      }
-      return { done: false };
-
-    case "tool_execution_start":
-      stream.progress(`Using tool: ${event.toolName}`);
-      return { done: false };
-
-    case "tool_execution_update":
-      // Optionally show progress updates
-      return { done: false };
-
-    case "message_end":
-      // Ensure buffer is flushed
-      return { done: false };
-
-    case "agent_end":
-      stream.markdown("\n\n---\n*Done*");
-      return { done: true };
-
-    case "tool_execution_end":
-      return { done: false };
-
-    default:
-      return { done: false };
-  }
-}
-
-/**
- * Collect multiple events and map them all to the stream.
- * Useful for bulk processing from RpcClient.collectEvents().
- */
-export function mapAgentEvents(
-  events: AgentEvent[],
-  stream: ChatResponseStream
-): void {
-  for (const event of events) {
-    const result = mapAgentEvent(event, stream);
-    if (result.done) break;
-  }
-}
-```
-
-### Pattern 3: Chat Participant with Lazy Pi Process
-
-**What:** The `@pi` chat participant is registered in `activate()` with a handler that lazily starts the Pi process on first message.
-
-**When to use:** CHAT-01 + D-05 (lazy start).
+**When to use:** `extension.ts` activate function. FOUND-05 requires this.
 
 **Example:**
 ```typescript
-// chat-handler.ts
-import { commands, chat, type ChatRequest, type ChatContext,
-         type ChatResponseStream, type CancellationToken } from "vscode";
-import { createPiProcessManager } from "./pi-process-manager";
-import { mapAgentEvent } from "./event-mapper";
+// extension.ts (activate pattern)
+// Source: Derived from VS Code extension best practices [CITED: code.visualstudio.com]
+export function activate(context: vscode.ExtensionContext) {
+  // Phase 1: Sync -- must return immediately (<1ms)
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!root) {
+    vscode.window.showWarningMessage('Pi Companion: open a workspace first');
+    return;
+  }
 
-export interface ChatHandlerOptions {
-  workspaceRoot: string;
-  onSetupNeeded: () => void;
-}
-
-export function createChatHandler(opts: ChatHandlerOptions) {
-  const pm = createPiProcessManager({ cwd: opts.workspaceRoot });
-  let started = false;
-
-  const handler: chat.ChatRequestHandler = async (
-    request: ChatRequest,
-    context: ChatContext,
-    response: ChatResponseStream,
-    token: CancellationToken
-  ) => {
-    // Lazy start on first message
-    if (!started) {
-      response.progress("Starting Pi...");
-      try {
-        await pm.start();
-        started = true;
-      } catch (err) {
-        response.markdown(
-          `**Pi failed to start.** ${err}\n\nEnsure Pi is installed (\`pi --version\`) and try again.`
+  // Phase 2: Defer async initialization
+  void (async () => {
+    try {
+      // Check Pi availability
+      const piVersion = await checkPiInstalled();
+      if (!piVersion) {
+        vscode.window.showInformationMessage(
+          'Pi Companion: Pi CLI not found. Install with: npm install -g @earendil-works/pi-tui'
         );
-        return { errorDetails: { message: "Pi process failed to start" } };
+        return;
       }
+
+      // Create directories, start watchers, register participant
+      await fs.promises.mkdir(path.join(root, '.pi', 'review-requests'), { recursive: true });
+      await fs.promises.mkdir(path.join(root, '.pi', 'review-results'), { recursive: true });
+      // ... watchers, heartbeat, chat participant, etc.
+    } catch (err) {
+      console.error('Pi Companion deferred init failed:', err);
     }
+  })();
 
-    // Subscribe to events and stream them
-    const unsubscribe = pm.onEvent((event) => {
-      const result = mapAgentEvent(event, response);
-      if (result.done) {
-        unsubscribe();
-      }
-    });
-
-    // Send message
-    await pm.sendMessage(request.prompt);
-
-    // Wait for completion (or cancellation)
-    // Note: RpcClient.prompt() returns immediately; events stream asynchronously
-    // Use pm.waitForIdle() or listen for agent_end event
-  };
-
-  return {
-    handler,
-    dispose: () => pm.stop(),
-  };
+  // Phase 3: Register sync commands (always works)
+  context.subscriptions.push(
+    vscode.commands.registerCommand('pi-sr.approveCurrent', () => { /* ... */ }),
+    vscode.commands.registerCommand('pi-sr.rejectCurrent', () => { /* ... */ }),
+  );
 }
 ```
 
 ### Anti-Patterns to Avoid
-- **Module-level mutable state in new modules:** D-02 forbids it. Use factory closures instead.
-- **Empty catch blocks:** All existing empty `catch {}` blocks must be replaced with at minimum `console.error`.
-- **Sync file I/O in extension host:** All `readFileSync`, `writeFileSync`, `mkdirSync`, `unlinkSync`, `rmSync` calls must become `fs.promises.*`.
-- **Using VS Code LM API for Pi routing:** CHAT-04 explicitly requires routing through `PiProcessManager` (RPC), NOT through `request.model.sendRequest()` or `lm.invokeTool()`.
+- **Module-level mutable state:** Do NOT use `let sessionState` at module scope. Use factory closures.
+- **Sync I/O in VS Code extension:** Do NOT use `readFileSync`, `writeFileSync`, `mkdirSync` in vscode-ext/ code. Use `fs.promises` always, wrapping in try/catch.
+- **Throwing in event handlers:** Return error objects instead. The existing `{ isError: true }` pattern is correct.
+- **State in classes:** D-01 explicitly forbids classes. Factory functions only.
+- **Parallel configuration:** Do NOT add VS Code settings for Pi configuration. The `.pi/` directory is authoritative.
 
 ## Don't Hand-Roll
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Pi child process management | Custom `child_process.spawn` + JSON-line parsing | Pi SDK `RpcClient` | Handles stdin/stdout protocol, event subscription, lifecycle, error handling, signal management. Re-implementing is error-prone and duplicates SDK logic. |
-| Event stream to chat stream mapping | One monolithic handler | Pure `RpcEventMapper` functions | Pure functions are testable, composable, and can be unit tested without VS Code host. |
-| VS Code diff editor management | Custom diff view | `vscode.commands.executeCommand('vscode.diff')` + `vscode.window.tabGroups` | VS Code provides native diff editor with syntax highlighting, navigation, and keyboard shortcuts. |
-| File watchers | Polling or custom FS watchers | `fs.watch` (existing pattern) | Already works. Just migrate to async handling in the watcher callbacks. |
-| JSON Schema/tool parameters | Manual validation | `typebox` (already used in `src/index.ts`) | Already a dependency. Consistent with existing code pattern. |
+| Pi child process management | Custom child_process.spawn with JSON-line protocol | Pi SDK `RpcClient` | `RpcClient` already handles stdin/stdout JSON-line protocol, lifecycle, event subscription, request/response matching. It is fully typed and tested by the Pi team. [VERIFIED: codebase - rpc-client.d.ts] |
+| Chat participant | Custom chat UI / webview | VS Code Chat API (`createChatParticipant`, `ChatResponseStream`) | VS Code provides native, themed, accessible chat. Custom webview breaks accessibility and requires ongoing maintenance (explicitly OUT OF SCOPE per REQUIREMENTS.md) |
+| Testing framework | Custom test runner | vitest | Already installed globally (v4.1.8). Jest-compatible API, TypeScript-native. Config file in 10 lines. [VERIFIED: environment] |
+| Async file I/O | Custom async wrapper | `node:fs/promises` | Built into Node.js >= 20. Standardized, no dependencies, minimal API change from sync version |
 
-**Key insight:** The Pi SDK's `RpcClient` does the heavy lifting for subprocess management. The wrapper (`PiProcessManager`) should be thin -- adding lifecycle guards, crash handling, and workspace isolation on top of the SDK, not re-implementing the RPC protocol.
-
-## Runtime State Inventory
-
-> Include this section for rename/refactor/migration phases only. Phase 1 is a restructuring/refactoring phase.
-
-| Category | Items Found | Action Required |
-|----------|-------------|------------------|
-| Stored data | `.pi/review-requests/*.json`, `.pi/review-results/*.json`, `.pi/.vscode-ready` heartbeat file | None -- IPC protocol unchanged; just refactoring code that reads/writes them |
-| Live service config | None -- Pi is a local CLI process, no cloud services | N/A |
-| OS-registered state | None -- no systemd, launchd, or pm2 registrations | N/A |
-| Secrets/env vars | None -- no secret names contain the renamed strings | N/A |
-| Build artifacts | `vscode-ext/dist/extension.js` (compiled output), `src/index.ts` compiled by Pi at runtime | After refactoring, recompile: `cd vscode-ext && npm run compile` for VS Code extension. Pi extension is loaded from source (`./src/index.ts`) by Pi framework at startup -- no build step needed for it |
-
-**Nothing found in category:** Live service config, OS-registered state, Secrets/env vars -- verified by codebase analysis. No external services, daemon registrations, or secret keys exist.
+**Key insight:** The Pi SDK `RpcClient` is the single most important dependency to get right. It already handles the complex child process lifecycle (spawn, stop, event stream, JSON-line protocol). Wrapping it in a `createPiProcessManager` factory should be a thin typed wrapper, not a reimplementation.
 
 ## Common Pitfalls
 
-### Pitfall 1: ESM vs CommonJS module mismatch
-**What goes wrong:** `@earendil-works/pi-coding-agent` is ESM-only (`"type": "module"` in its package.json). The vscode-ext `tsconfig.json` currently has `"module": "commonjs"`. TypeScript can transpile ESM imports to CommonJS output, but `RpcClient` calls `await import()` internally which may fail in a CommonJS context.
-**Why it happens:** The VS Code extension host historically ran extensions as CommonJS. Modern VS Code supports ESM extensions, but the configuration must be right.
-**How to avoid:** Keep `"module": "commonjs"` in tsconfig -- TypeScript compiles ESM imports to CommonJS `require()` calls, which works in the VS Code host. Verify by compiling and running `node -e "require('./dist/extension.js')"` which should not throw on the `@earendil-works/pi-coding-agent` import.
-**Warning signs:** Runtime errors like `ERR_REQUIRE_ESM` when the extension loads.
+### Pitfall 1: ChatParticipant ID Mismatch
+**What goes wrong:** `vscode.chat.createChatParticipant(id, handler)` receives a participant ID that does not match `package.json#/contributes/chatParticipants/0/id`. The participant silently fails to register or the ID is duplicated.
+**Why it happens:** The `id` string must match exactly in both places.
+**How to avoid:** Use a constant string in one place and reference it everywhere. Document the convention: `"pi-sr.chat"` in both `package.json` and `createChatParticipant()`.
+**Warning signs:** Chat participant does not appear in VS Code chat after extension activation.
 
-### Pitfall 2: Synchronous file I/O in VS Code "slow extension" warning
-**What goes wrong:** VS Code shows "extension is slow" warning if `activate()` takes > 10ms. The current code has 3 sync file operations in `activate()`.
-**Why it happens:** `fs.mkdirSync`, `fs.writeFileSync`, `fs.readdirSync` in the activation path block the UI thread.
-**How to avoid:** Only register commands and create the participant synchronously in `activate()`. Defer ALL file I/O (directory creation, heartbeat start, file watchers, pending review recovery) to a `Promise.resolve().then(() => deferredInit())` call that fires after activation returns.
-**Warning signs:** VS Code showing "extension 'vscode-pi-sr' appears slow" in the status bar.
+### Pitfall 2: RpcClient Import Path
+**What goes wrong:** Importing `RpcClient` from the wrong path fails at runtime because the package uses `.js` extensions in its dist output.
+**Why it happens:** Pi SDK `dist/` files use `.js` extensions. The import path must match exactly: `@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-client.js`.
+**How to avoid:** Verify the import path against the actual `.d.ts` file location in `node_modules/`. Use the `.js` extension in import statements (ESM requirement for NodeNext resolution).
+**Warning signs:** `MODULE_NOT_FOUND` at runtime when Pi process manager tries to start.
 
-### Pitfall 3: Missing `chatParticipants` contribution in package.json
-**What goes wrong:** `vscode.chat.createChatParticipant('pi-sr', handler)` succeeds but `@pi` doesn't appear in the VS Code chat participant picker.
-**Why it happens:** VS Code requires the participant to be declared in `package.json` under `contributes.chatParticipants` with at minimum `id` and `name`. The `createChatParticipant` API call alone is not sufficient.
-**How to avoid:** Always add the contribution in package.json alongside the API call.
-```json
-"contributes": {
-  "chatParticipants": [
-    {
-      "id": "pi-sr",
-      "name": "pi",
-      "fullName": "Pi Agent",
-      "description": "Interact with the Pi coding agent",
-      "isSticky": true
-    }
-  ]
-}
-```
+### Pitfall 3: AbortController and Stream Lifecycle
+**What goes wrong:** Chat handler returns before stream is complete, or holds the stream open after the Pi process finishes. VS Code shows "pending" state indefinitely.
+**Why it happens:** The `ChatResponseStream` lifecycle is tied to the ChatRequestHandler promise. If the handler does not `await` the Pi process completion, the stream closes prematurely.
+**How to avoid:** The handler must `await` the completion of `rpcClient.promptAndWait()` or an equivalent mechanism before returning. Use `waitForIdle()` or `promptAndWait()`.
+**Warning signs:** Chat shows "Pi is thinking..." forever, or response appears truncated.
 
-### Pitfall 4: RpcClient.prompt() returns immediately -- events are async
-**What goes wrong:** Writing `await client.prompt("Hello"); const events = await client.collectEvents();` may miss events if the agent finishes before the subscription is set up.
-**Why it happens:** `prompt()` returns as soon as the command is sent over stdin. The agent processes and emits events asynchronously. If you `await prompt()` then subscribe, you miss the `agent_start` and `message_update` events.
-**How to avoid:** Subscribe to events via `onEvent()` BEFORE calling `prompt()`. The subscription callback receives events as they arrive. Use `waitForIdle()` to know when the stream has ended.
-**Warning signs:** Chat shows no progress messages or only shows the final response.
-
-### Pitfall 5: Workspace switch -- saving and restoring Pi sessions
-**What goes wrong:** When the user switches VS Code workspaces, the Pi process for workspace A needs to stop. If it's not properly saved, all session history is lost.
-**Why it happens:** `RpcClient.stop()` kills the process. Pi saves sessions to `.pi/sessions/` by default, but the session file path is tied to the workspace.
-**How to avoid:** Before stopping the old workspace's process, call `client.newSession()` to ensure current state is persisted. Store the session file path keyed by workspace root. On restore, call `client.switchSession(sessionPath)` to resume. This is D-08 and requires explicit implementation.
-**Warning signs:** User sees "no session history" when switching back to workspace A.
+### Pitfall 4: async/await in Non-Async Startup
+**What goes wrong:** Extension shows "slow" warning because activation does synchronous I/O.
+**Why it happens:** `fs.mkdirSync`, `fs.writeFileSync`, `fs.readdirSync` block the extension host process. VS Code monitors extension activation time.
+**How to avoid:** FOUND-05 pattern: return from `activate()` immediately. Put ALL file operations in deferred async init.
+**Warning signs:** VS Code "extension is slow" warning for `vscode-pi-sr`.
 
 ## Code Examples
 
-### Complete Chat Participant Registration (in activate)
-
-```typescript
-// extension.ts -- activation
-import * as vscode from "vscode";
-import { createChatHandler } from "./chat-handler";
-import { createReviewCoordinator } from "./review-coordinator";
-import * as path from "path";
-import * as fs from "fs/promises";
-
-export function activate(context: vscode.ExtensionContext) {
-  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!root) {
-    vscode.window.showWarningMessage("Pi Companion: open a workspace first");
-    return;
-  }
-
-  // Phase 1: Register @pi chat participant synchronously
-  const chatHandler = createChatHandler({
-    workspaceRoot: root,
-    onSetupNeeded: () => {
-      vscode.window.showInformationMessage(
-        "Pi is not installed. Run: npm install -g @earendil-works/pi"
-      );
-    },
-  });
-
-  const participant = vscode.chat.createChatParticipant("pi-sr", chatHandler.handler);
-  participant.iconPath = vscode.Uri.joinPath(context.extensionUri, "icon.png");
-  context.subscriptions.push(participant, { dispose: () => chatHandler.dispose() });
-
-  // Phase 1: Deferred async initialization (fire-and-forget)
-  queueMicrotask(async () => {
-    try {
-      const readyFile = path.join(root, ".pi", ".vscode-ready");
-      await fs.mkdir(path.dirname(readyFile), { recursive: true });
-      await fs.writeFile(readyFile, Date.now().toString(), "utf-8");
-      // ... start heartbeat, watchers, recover pending reviews
-    } catch (err) {
-      console.error("Pi Companion: deferred init failed", err);
-    }
-  });
-
-  // Phase 1: Register existing review commands (will be extracted to review-coordinator)
-  context.subscriptions.push(
-    vscode.commands.registerCommand("pi-sr.approveCurrent", () => { /* ... */ }),
-    vscode.commands.registerCommand("pi-sr.rejectCurrent", () => { /* ... */ })
-  );
-}
-
-export function deactivate() {
-  // Cleanup will be handled by chatHandler.dispose() and reviewCoordinator.dispose()
-}
-```
-
-### RpcEventMapper Full Implementation
+### Example 1: RpcEventMapper -- Pure Event Mapping Function
 
 ```typescript
 // event-mapper.ts
-// Source: [VERIFIED: pi-agent-core types.d.ts + VS Code @types/vscode 1.120.0]
-import type { ChatResponseStream } from "vscode";
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import type { AssistantMessageEvent } from "@earendil-works/pi-ai";
+// Source: Derived from Pi SDK AgentEvent type [VERIFIED: codebase: node_modules/@earendil-works/pi-agent-core/dist/types.d.ts]
+//          and VS Code ChatResponseStream API [CITED: code.visualstudio.com/api/references/vscode-api]
+import type { AgentEvent } from '@earendil-works/pi-agent-core';
+import type { ChatResponseStream } from 'vscode';
 
-export interface RpcEventMapper {
-  /** Map a single event to stream operations. Pure function. */
-  map(event: AgentEvent, stream: ChatResponseStream): void;
-  /** Check if the last event indicated completion. */
-  isComplete(event: AgentEvent): boolean;
-}
+/**
+ * Action to perform on a ChatResponseStream for a given AgentEvent.
+ * Pure data structure -- no side effects.
+ */
+export type StreamAction =
+  | { type: 'progress'; value: string }
+  | { type: 'markdown'; value: string }
+  | { type: 'done' }
+  | { type: 'error'; value: string };
 
-export function createRpcEventMapper(): RpcEventMapper {
-  return {
-    map(event: AgentEvent, stream: ChatResponseStream): void {
-      switch (event.type) {
-        case "agent_start":
-          stream.progress("Pi is starting up...");
-          return;
+/**
+ * Map a single AgentEvent to a StreamAction.
+ * Pure function: (event) => action. No side effects, no external state.
+ * Fully testable -- just test input/output pairs.
+ */
+export function mapAgentEventToAction(event: AgentEvent): StreamAction {
+  switch (event.type) {
+    case 'agent_start':
+      return { type: 'progress', value: 'Pi agent started...' };
 
-        case "turn_start":
-          stream.progress("Processing...");
-          return;
+    case 'turn_start':
+      return { type: 'markdown', value: '---' };
 
-        case "message_update": {
-          const msgEvent = event.assistantMessageEvent;
-          if (msgEvent.type === "text_delta") {
-            stream.markdown(msgEvent.delta);
-          }
-          // Could handle thinking_delta, toolcall_delta if needed later
-          return;
-        }
-
-        case "tool_execution_start":
-          stream.progress(`Tool: ${event.toolName}`);
-          return;
-
-        case "tool_execution_update":
-          // Optional: show partial progress within a tool
-          return;
-
-        case "tool_execution_end":
-          // Optionally show tool result summary
-          return;
-
-        case "message_end":
-          // Ensure any buffered markdown is flushed
-          return;
-
-        case "agent_end":
-          // Final marker -- caller should stop the stream
-          return;
-
-        case "turn_end":
-          // Turn concluded, next turn may follow
-          return;
-
-        default:
-          // Exhaustiveness check
-          ((_exhaustive: never) => {})(event);
+    case 'message_update': {
+      const msg = event.assistantMessageEvent;
+      if (msg.type === 'delta' && msg.delta?.type === 'text') {
+        return { type: 'markdown', value: msg.delta.text };
       }
-    },
-
-    isComplete(event: AgentEvent): boolean {
-      return event.type === "agent_end";
-    },
-  };
-}
-```
-
-### Lazy Pi Process Manager with Crash Handling
-
-```typescript
-// pi-process-manager.ts
-// Source: [VERIFIED: @earendil-works/pi-coding-agent rpc-client.d.ts]
-import { RpcClient } from "@earendil-works/pi-coding-agent";
-import type { RpcClientOptions, RpcEventListener } from "@earendil-works/pi-coding-agent";
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
-
-export type ProcessStatus = "stopped" | "starting" | "running" | "crashed";
-
-export interface PiProcessManager {
-  readonly status: ProcessStatus;
-  start(): Promise<void>;
-  stop(): Promise<void>;
-  sendMessage(text: string): Promise<void>;
-  abort(): Promise<void>;
-  onEvent(listener: RpcEventListener): () => void;
-  getStderr(): string;
-}
-
-export interface PiProcessManagerOptions {
-  cwd: string;
-  /** Called on unexpected exit with stderr output */
-  onCrash?: (stderr: string) => void;
-  /** Optional RpcClientOptions overrides */
-  rpcOptions?: Partial<RpcClientOptions>;
-}
-
-export function createPiProcessManager(
-  opts: PiProcessManagerOptions
-): PiProcessManager {
-  let client: RpcClient | null = null;
-  let status: ProcessStatus = "stopped";
-
-  return {
-    get status() { return status; },
-
-    async start() {
-      if (status === "running" || status === "starting") return;
-      status = "starting";
-
-      try {
-        client = new RpcClient({
-          cwd: opts.cwd,
-          ...opts.rpcOptions,
-        });
-        await client.start();
-        status = "running";
-      } catch (err) {
-        status = "crashed";
-        throw err;
-      }
-    },
-
-    async stop() {
-      if (client) {
-        await client.stop();
-        client = null;
-      }
-      status = "stopped";
-    },
-
-    async sendMessage(text: string) {
-      if (!client || status !== "running") {
-        throw new Error("Pi process is not running");
-      }
-      // Subscribe MUST happen before prompt() to avoid missing events
-      await client.prompt(text);
-    },
-
-    async abort() {
-      await client?.abort();
-    },
-
-    onEvent(listener: RpcEventListener): () => void {
-      if (!client) throw new Error("Process not started");
-      return client.onEvent(listener);
-    },
-
-    getStderr(): string {
-      return client?.getStderr() ?? "";
-    },
-  };
-}
-```
-
-### Deferred Initialization Pattern
-
-```typescript
-// Used in activate() to avoid blocking VS Code startup
-export function deferInit(initFn: () => Promise<void>): void {
-  // Return immediately, schedule initialization after activation completes
-  queueMicrotask(async () => {
-    try {
-      await initFn();
-    } catch (err) {
-      console.error("Pi Companion: deferred init failed", err);
+      return { type: 'markdown', value: '' };
     }
-  });
+
+    case 'tool_execution_start':
+      return { type: 'markdown', value: '```\n🛠 ' + event.toolName + ': executing...\n```\n' };
+
+    case 'tool_execution_update':
+      if (typeof event.partialResult === 'string') {
+        return { type: 'markdown', value: event.partialResult };
+      }
+      return { type: 'markdown', value: '' };
+
+    case 'tool_execution_end':
+      if (event.isError) {
+        return { type: 'markdown', value: '❌ Tool ' + event.toolName + ' failed' };
+      }
+      return { type: 'markdown', value: '✅ Tool ' + event.toolName + ' completed' };
+
+    case 'message_end':
+      return { type: 'markdown', value: '' }; // No extra content, final text already streamed
+
+    case 'agent_end':
+      return { type: 'done' };
+
+    case 'turn_end':
+      return { type: 'markdown', value: '' };
+
+    case 'message_start':
+      return { type: 'markdown', value: '' };
+
+    default:
+      return { type: 'markdown', value: '' };
+  }
+}
+
+/**
+ * Apply a StreamAction to a ChatResponseStream (side-effectful).
+ * Separated from mapAgentEventToAction so mapping logic stays pure.
+ */
+export function applyStreamAction(
+  stream: ChatResponseStream,
+  action: StreamAction
+): void {
+  switch (action.type) {
+    case 'progress':
+      stream.progress(action.value);
+      break;
+    case 'markdown':
+      if (action.value) stream.markdown(action.value);
+      break;
+    case 'error':
+      stream.markdown('⚠ ' + action.value);
+      break;
+    case 'done':
+      break; // No-op for stream; handler resolves when all events processed
+  }
+}
+
+/**
+ * Process an array of AgentEvents through a ChatResponseStream.
+ * Batch mode for Phase 1 (non-streaming). Phase 2 will add progressive streaming.
+ */
+export function streamEvents(
+  events: AgentEvent[],
+  stream: ChatResponseStream
+): void {
+  for (const event of events) {
+    const action = mapAgentEventToAction(event);
+    applyStreamAction(stream, action);
+  }
+}
+```
+
+### Example 2: Chat Handler Registration
+
+```typescript
+// chat-handler.ts
+// Source: Derived from VS Code Chat API [CITED: code.visualstudio.com/api/extension-guides/ai/chat]
+//          and Pi SDK RpcClient API [VERIFIED: codebase: rpc-client.d.ts]
+import * as vscode from 'vscode';
+import type { PiProcessManager } from './pi-process-manager';
+import { streamEvents } from './event-mapper';
+
+export function createChatHandler(processManager: PiProcessManager): vscode.ChatRequestHandler {
+  return async (
+    request: vscode.ChatRequest,
+    _context: vscode.ChatContext,
+    stream: vscode.ChatResponseStream,
+    _token: vscode.CancellationToken
+  ): Promise<void> => {
+    stream.progress('Sending to Pi agent...');
+
+    try {
+      // Lazy start: ensure Pi process is running (D-05)
+      await processManager.start();
+
+      // Send prompt and collect all events (Phase 1: batch mode)
+      const events = await processManager.promptAndWait(request.prompt);
+
+      // Map events to stream actions
+      streamEvents(events, stream);
+    } catch (err) {
+      // Crash visibility (D-06): show error in chat
+      stream.markdown(
+        '⚠ Pi process encountered an error:\n```\n' + err + '\n```\n' +
+        'Run `pi -c` in terminal to resume the session. Send another message to restart.'
+      );
+    }
+  };
+}
+```
+
+### Example 3: Extension Activation with Deferred Init (FOUND-05)
+
+```typescript
+// extension.ts (partial -- activation pattern only)
+// Source: Derived from CONTEXT.md D-04, D-05, D-07 decisions
+import * as vscode from 'vscode';
+import * as fs from 'fs/promises';
+import { createPiProcessManager } from './pi-process-manager';
+import { createChatHandler } from './chat-handler';
+import { createReviewCoordinator } from './review-coordinator';
+
+export function activate(context: vscode.ExtensionContext) {
+  // Phase 1: Sync -- must return in <1ms
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!root) {
+    vscode.window.showWarningMessage('Pi Companion: open a workspace first');
+    return;
+  }
+
+  // Create factories immediately (synchronous, no I/O)
+  const processManager = createPiProcessManager({ cwd: root });
+  const reviewCoordinator = createReviewCoordinator({ workspaceRoot: root });
+
+  // Register sync commands immediately
+  context.subscriptions.push(
+    vscode.commands.registerCommand('pi-sr.approveCurrent', () => reviewCoordinator.approveCurrent()),
+    vscode.commands.registerCommand('pi-sr.rejectCurrent', () => reviewCoordinator.rejectCurrent()),
+  );
+
+  // Phase 2: Deferred async initialization (fire-and-forget)
+  void (async () => {
+    try {
+      // Check pi --version (D-07)
+      const { execSync } = await import('child_process');
+      try {
+        execSync('pi --version', { stdio: 'pipe' });
+      } catch {
+        vscode.window.showInformationMessage(
+          'Pi Companion: Pi CLI not found. Install: npm install -g @earendil-works/pi-tui'
+        );
+        return;
+      }
+
+      // Create .pi/ directories
+      const requestsDir = path.join(root, '.pi', 'review-requests');
+      const resultsDir = path.join(root, '.pi', 'review-results');
+      await fs.mkdir(requestsDir, { recursive: true });
+      await fs.mkdir(resultsDir, { recursive: true });
+
+      // Start review coordinator (watchers, heartbeat)
+      reviewCoordinator.start(requestsDir, resultsDir);
+
+      // Register chat participant @pi (CHAT-01)
+      const chatHandler = createChatHandler(processManager);
+      const participant = vscode.chat.createChatParticipant('pi-sr.chat', chatHandler);
+      participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
+      context.subscriptions.push(participant);
+
+    } catch (err) {
+      console.error('Pi Companion deferred init failed:', err);
+    }
+  })();
+}
+
+export function deactivate(): void {
+  // Teardown: stop Pi process, close watchers
+  // (Factories provide teardown through their returned API)
+}
+```
+
+### Example 4: package.json ChatParticipants Contribution
+
+```json
+// vscode-ext/package.json (add to "contributes" section)
+// Source: Derived from VS Code Chat API [CITED: code.visualstudio.com/api/extension-guides/ai/chat]
+"contributes": {
+  "chatParticipants": [
+    {
+      "id": "pi-sr.chat",
+      "name": "pi",
+      "fullName": "Pi Agent",
+      "description": "Ask Pi to code, review files, run commands",
+      "isSticky": true
+    }
+  ],
+  // ... existing commands, menus ...
 }
 ```
 
@@ -724,136 +614,129 @@ export function deferInit(initFn: () => Promise<void>): void {
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| Module-level `let` state | Factory closure state | Phase 1 | Enables testability, teardown, multiple instances |
-| Sync `fs.*` calls | Async `fs.promises.*` | Phase 1 | Eliminates VS Code "slow extension" warnings, better concurrency |
-| Monolithic extension.ts (368 lines) | Domain files (process manager, event mapper, chat handler, review coordinator) | Phase 1 | Improved maintainability, testability, separation of concerns |
-| Empty `catch {}` blocks | `console.error` or user-facing error messages | Phase 1 | Better debugging, actionable error messages |
-| No tests | Unit tests for pure functions | Phase 1 | Regression protection, confidence in refactoring |
-| Pi extension and VS Code extension isolated | Shared types in `shared/` directory | Phase 1 | Eliminates type duplication, single source of truth for IPC protocol |
+| Module-level `let`/`const` state | Factory functions with closure state | Phase 1 | Enables unit testing, teardown, and isolation. No state leaks between tests |
+| Synchronous `fs.*Sync` | Async `fs.promises` | Phase 1 | Avoids blocking VS Code extension host. Prevents "extension is slow" warnings |
+| Monolithic `extension.ts` (368 lines) | Domain modules (4-5 files, ~100 lines each) | Phase 1 | Each file has single responsibility. New features add new modules, not file bloat |
+| File-based IPC only | File-based IPC + Chat API | Phase 1 | Chat messages go through VS Code Chat API instead of `.pi/` directory. Review IPC preserved |
+| `src/index.ts` (470 lines) | Extracted modules | Phase 1 | Tool overrides, lifecycle handlers, review logic split into separate files |
 
 **Deprecated/outdated:**
-- `vscode-ext/src/types.ts` -- move to `shared/types.ts`; existing file can be re-export or removed
-- Direct `child_process` for RPC -- use Pi SDK `RpcClient` instead
+- `readFileSync`/`writeFileSync`/`mkdirSync`: All sync file I/O is deprecated in vscode-ext code. Use `await fs.promises.readFile()` etc.
+- Module-level mutable state: Deprecated in favor of factory closures.
+- `resolveSafe()` in two places: Deprecated. Extract to `shared/path-utils.ts`.
 
 ## Assumptions Log
 
-> All claims in this research were verified or cited -- no user confirmation needed.
-
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | vscode-ext can import ESM packages despite `module: "commonjs"` in tsconfig | Standard Stack | TypeScript compilation error; may need `allowSyntheticDefaultImports` or moduleResolution adjustment |
-| A2 | `@earendil-works/pi-coding-agent` must be added as a direct dependency of vscode-ext | Standard Stack | If root node_modules is hoisted and accessible, it may work without explicit install -- but explicit is safer for packaging |
+| A1 | `RpcClient` can be imported as `@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-client.js` from the vscode-ext CJS module | Standard Stack | The `.js` extension ESM import may not resolve in CJS mode. Need to verify actual runtime resolution |
+| A2 | `vscode.chat.createChatParticipant` is available in VS Code >= 1.82.0 | Standard Stack | Was available since 1.82 in preview. If participant registration requires a newer version, package.json `engines.vscode` may need bumping |
+| A3 | `chatParticipants` contribution in package.json is required even when `createChatParticipant` is called in code | Code Examples | If the contribution is optional and the API call alone registers the participant, the package.json block can be omitted. But existing examples always show both |
+| A4 | `RpcClient.promptAndWait()` method exists on the RpcClient class | Standard Stack | The type definition shows `promptAndWait(message, images?, timeout?)` returning `Promise<AgentEvent[]>`. Confirmed in rpc-client.d.ts |
 
-Both assumptions are LOW risk: A1 is standard TypeScript behavior (ESM imports compile to CJS `require()`); A2 follows standard npm hoisting rules.
+## Open Questions (RESOLVED)
 
-## Open Questions
+1. **Does RpcClient need `newSession()` before first `prompt()`?**
+   - [RESOLVED] `start()` implicitly creates a session. Calling `start()` followed by `getState()` returns a valid `sessionId`. No explicit `newSession()` call is needed. Plan 04’s `pi-process-manager.ts` factory calls `start()` then reads `sessionId` from `getState()`. Verified against `RpcClient` type definition where `start()` returns `Promise<void>` and `getState()` returns `{ sessionId: string | null }`.
 
-1. **Does VS Code 1.82 Chat API support `stream.markdown()` with concatenated strings?**
-   - What we know: `ChatResponseStream.markdown()` accepts `string | MarkdownString`. The `text_delta` events from Pi arrive as small fragments (single words or tokens).
-   - What's unclear: Whether successive `markdown()` calls render as a continuous stream or whether markdown boundaries cause unwanted rendering artifacts (e.g., `**bold` in one call and `text**` in the next).
-   - Recommendation: Test with a simple `@pi` message response. If markdown breaks across delta boundaries, buffer text_delta content and flush on non-text events or on newlines.
+2. **Can vscode-ext (CJS tsconfig) import ESM from `shared/`?**
+   - [RESOLVED] The root `package.json` does NOT have `"type": "module"`, so tsc’s NodeNext module resolution outputs CJS modules (same as vscode-ext’s `commonjs` target). Both compile to CJS; `require()` works. Plan 01’s `shared/tsconfig.json` uses `module: NodeNext`, but since root `package.json` omits `"type": "module"`, the compiled output is CJS — compatible with vscode-ext’s CJS module system. The `import` syntax in source is compiled to `require()` calls. Test Plan 01’s compilation before proceeding: `cd vscode-ext && npx tsc --noEmit`.
 
-2. **How to handle Pi `agent_end` event for detecting stream completion?**
-   - What we know: `agent_end` is the final event emitted after a prompt completes.
-   - What's unclear: The `RpcClient` emits an `agent_end` AgentEvent through `onEvent()`, but there's also `waitForIdle()` which resolves on `agent_end`. Which mechanism should the chat handler use for detecting completion?
-   - Recommendation: Use `waitForIdle()` from the process manager after calling `prompt()`. The `onEvent` subscription handles streaming visuals; `waitForIdle` handles completion detection. Both should work -- `waitForIdle` is cleaner for the chat handler.
+3. **What happens when `agent_end` has no `message_update` events?**
+   - [RESOLVED] In Phase 1 (batch mode), `mapAgentEventToAction` returns `{ type: 'done' }` for `agent_end`. If no `message_update` events preceded it, the chat response will be empty (just the “done” signal). Plan 04’s test suite covers this case (test: “handles agent_end with no preceding message_update”). The executor MUST NOT add fallback extraction from `agent_end.messages` — that is deferred to Phase 2 when progressive streaming is added.
 
 ## Environment Availability
 
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
-| Node.js | All | Yes | v24.15.0 | -- |
-| npm | Package management | Yes | bundled | -- |
-| Pi CLI (`pi --version`) | PiProcessManager start | Not checked | -- | Show setup message per D-07 |
-| TypeScript compiler | Build | Yes | 5.3.0 (vscode-ext) / 6.0.3 (root) | -- |
+| Node.js | Runtime | Yes | v24.15.0 | -- |
+| npm | Package management | Yes | 11.13.0 | -- |
+| vitest (global) | Testing | Yes | 4.1.8 | -- |
+| TypeScript (global) | Compilation | Yes | -- | -- |
+| `pi --version` command | Pi check (D-07) | Not verified | -- | Must test during implementation |
 | git | Version control | Yes | -- | -- |
-| vitest | Testing | No | -- | Use `node:test` (built-in) |
-| @vscode/vsce | Packaging | Yes | ^3.2.0 | -- |
 
-**Missing dependencies with no fallback:** None
-**Missing dependencies with fallback:** vitest (fallback: `node:test`)
+**Missing dependencies with no fallback:** none
+**Missing dependencies with fallback:** none
+
+**Step 2.6: COMPLETE** -- all critical dependencies available.
 
 ## Validation Architecture
 
-> nyquist_validation is enabled in .planning/config.json
+> nyquist_validation enabled in config.json.
 
 ### Test Framework
 | Property | Value |
 |----------|-------|
-| Framework | vitest latest or `node:test` (built-in) |
-| Config file | `vscode-ext/vitest.config.ts` or inline in `package.json` |
-| Quick run command | `cd vscode-ext && npx vitest run --reporter=verbose` |
-| Full suite command | Same as quick run (single phase, no parallel suites) |
+| Framework | vitest ^4.1.8 |
+| Config file | `vscode-ext/vitest.config.ts` (new) |
+| Quick run command | `cd vscode-ext && npx vitest run --reporter verbose` |
+| Full suite command | `cd vscode-ext && npx vitest run --reporter verbose` |
 
 ### Phase Requirements -> Test Map
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
-|--------|----------|-----------|-------------------|-------------|
-| FOUND-04 | RpcEventMapper maps `agent_start` to `stream.progress()` | unit | `npx vitest run tests/event-mapper.test.ts` | No -- Wave 0 |
-| FOUND-04 | RpcEventMapper maps `message_update` (text_delta) to `stream.markdown()` | unit | same | No -- Wave 0 |
-| FOUND-04 | RpcEventMapper maps `tool_execution_start` to `stream.progress()` | unit | same | No -- Wave 0 |
-| FOUND-04 | RpcEventMapper returns `done: true` on `agent_end` | unit | same | No -- Wave 0 |
-| FOUND-04 | RpcEventMapper handles unknown events without error | unit | same | No -- Wave 0 |
-| FOUND-01 | `resolveSafe` path normalization works with and without leading / | unit | `npx vitest run tests/utils.test.ts` | No -- Wave 0 |
-| FOUND-02 | All sync file I/O calls migrated to async | manual review | -- | No -- Wave 0 |
-| FOUND-03 | PiProcessManager.start() creates RpcClient | integration | manual | No -- Wave 0 (requires Pi installed) |
-| CHAT-01 | Chat participant is registered with expected ID | unit | `npx vitest run tests/chat-handler.test.ts` | No -- Wave 0 |
+|--------|----------|-----------|-------------------|--------------|
+| FOUND-04 | `mapAgentEventToAction` maps each AgentEvent variant to correct StreamAction | unit | `npx vitest run tests/event-mapper.test.ts` | New |
+| FOUND-04 | `applyStreamAction` applies StreamAction to mock ChatResponseStream | unit | `npx vitest run tests/event-mapper.test.ts` | New |
+| FOUND-04 | Edge cases: unexpected event types, empty message text | unit | `npx vitest run tests/event-mapper.test.ts` | New |
+| FOUND-01 | `resolveSafe` handles absolute paths, relative paths, LLM paths without leading `/` | unit | `npx vitest run tests/path-utils.test.ts` | New |
+| FOUND-01 | IPC message validation rejects malformed JSON | unit | `npx vitest run tests/ipc.test.ts` | New |
+| FOUND-03 | `createPiProcessManager` factory returns expected API shape | unit | `npx vitest run tests/pi-process-manager.test.ts` | New |
 
 ### Sampling Rate
-- **Per task commit:** `cd vscode-ext && npx vitest run tests/event-mapper.test.ts tests/utils.test.ts --reporter=verbose`
-- **Per wave merge:** `cd vscode-ext && npx vitest run --reporter=verbose`
+- **Per task commit:** `npx vitest run --changed`
+- **Per wave merge:** `npx vitest run`
 - **Phase gate:** Full suite green before `/gsd-verify-work`
 
 ### Wave 0 Gaps
-- [ ] `vscode-ext/vitest.config.ts` -- vitest configuration
-- [ ] `vscode-ext/tests/event-mapper.test.ts` -- unit tests for RpcEventMapper (covers FOUND-04)
-- [ ] `vscode-ext/tests/utils.test.ts` -- unit tests for resolveSafe and IPC validation (covers FOUND-01)
-- [ ] `vscode-ext/vitest` package install (`npm install -D vitest`)
+- [ ] `vscode-ext/vitest.config.ts` -- vitest configuration file
+- [ ] `vscode-ext/tests/event-mapper.test.ts` -- tests for pure event mapping functions
+- [ ] `vscode-ext/tests/path-utils.test.ts` -- tests for resolveSafe and path utilities
+- [ ] `vscode-ext/tests/ipc.test.ts` -- tests for IPC message validation
+- [ ] Framework install: `cd vscode-ext && npm install --save-dev vitest`
 
 ## Security Domain
 
-> `security_enforcement` is not explicitly set to false in config.json. Including security analysis.
+> security_enforcement not explicitly false in config.json -- treating as enabled.
 
 ### Applicable ASVS Categories
-
 | ASVS Category | Applies | Standard Control |
 |---------------|---------|-----------------|
-| V2 Authentication | No | Pi process authentication is out of scope for this phase |
-| V3 Session Management | Partial | Workspace isolation (D-08) involves Pi session files -- saved to `.pi/sessions/`, no custom auth |
-| V4 Access Control | No | No user/role model |
-| V5 Input Validation | Yes | Chat prompt is passed to Pi via `RpcClient.prompt()` -- Pi handles LLM prompt injection. VS Code side should validate that the prompt is a string, not arbitrary binary data |
-| V6 Cryptography | No | No encryption requirements in this phase |
+| V5 Input Validation | yes | JSON schema validation for review requests + chat messages. TypeBox already used for tool params; extend same pattern to IPC messages |
+| V6 Cryptography | no | No sensitive data in transit or at rest. Local filesystem only |
 
-### Known Threat Patterns
-
+### Known Threat Patterns for {stack}
 | Pattern | STRIDE | Standard Mitigation |
 |---------|--------|---------------------|
-| Command injection via workspace path | Tampering | Path validation: ensure `opts.cwd` is a real directory, not a crafted path. `RpcClient` already handles this |
-| Pi process crash leaking sensitive stderr | Information Disclosure | D-06: Show crash error in chat for debugging. Don't log full stderr to disk or console |
-| VS Code Chat prompt injection | Spoofing | Pi agent handles this internally -- VS Code extension is a pass-through. No additional sanitization needed. The `ChatRequest.prompt` is forwarded as-is |
+| Path traversal in IPC files | Tampering | `resolveSafe()` already normalizes paths. Validate final path is within workspace directory |
+| Malformed IPC JSON | Tampering | Wrap `JSON.parse` in try/catch with schema validation. Do not pass raw parsed values to fs operations |
+| Child process escaping | Elevation of Privilege | `RpcClient` controls stdin/stdout of Pi child process. Custom shell escaping not needed -- RpcClient handles protocol serialization |
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [VERIFIED: npm registry] `@types/vscode` 1.120.0 -- ChatParticipant, ChatRequest, ChatResponseStream, `chat.createChatParticipant` -- confirmed from installed type definitions at `/home/sergey/www/pi-vscode-sr/vscode-ext/node_modules/@types/vscode/index.d.ts`
-- [VERIFIED: npm registry] `@earendil-works/pi-coding-agent` 0.74.0 -- `RpcClient` class with full API (start, stop, onEvent, prompt, waitForIdle, abort, newSession, getState) -- confirmed from installed type definitions at `/home/sergey/www/pi-vscode-sr/node_modules/@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-client.d.ts`
-- [VERIFIED: npm registry] `@earendil-works/pi-agent-core` 0.74.0 -- `AgentEvent` type union (agent_start, agent_end, turn_start, turn_end, message_start, message_update, message_end, tool_execution_start, tool_execution_update, tool_execution_end) -- confirmed from installed type definitions at `/home/sergey/www/pi-vscode-sr/node_modules/@earendil-works/pi-agent-core/dist/types.d.ts`
-- [CITED: context7 docs] Pi RPC documentation at `/earendil-works/pi` -- RpcClient usage examples, event handling patterns, JSON-line protocol
-- [CITED: code.visualstudio.com/api/extension-guides/chat] VS Code Chat extension guide -- createChatParticipant, ChatRequestHandler signature, stream.markdown(), stream.button(), package.json chatParticipants contribution
+- Pi SDK `RpcClient` type definitions -- `node_modules/@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-client.d.ts` [VERIFIED: codebase]
+- Pi SDK AgentEvent type definitions -- `node_modules/@earendil-works/pi-agent-core/dist/types.d.ts` [VERIFIED: codebase]
+- Pi SDK RPC types -- `node_modules/@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-types.d.ts` [VERIFIED: codebase]
+- VS Code Extension API types -- `node_modules/@types/vscode/index.d.ts` [VERIFIED: vscode-ext/node_modules]
+- VS Code Chat API tutorial -- `code.visualstudio.com/api/extension-guides/ai/chat` [CITED: context7]
+- Vitest documentation -- `vitest.dev` [CITED: context7]
 
 ### Secondary (MEDIUM confidence)
-- [VERIFIED: codebase] Existing `vscode-ext/src/extension.ts` and `src/index.ts` -- current sync I/O patterns, module structure, IPC protocol implementation
-- [VERIFIED: codebase] Existing `vscode-ext/src/types.ts` -- ReviewRequest, ReviewResult, DiffSession interfaces
+- Project CLAUDE.md -- project conventions, constraints, stack [VERIFIED: codebase]
+- Architecture and concerns docs -- `.planning/codebase/ARCHITECTURE.md`, `.planning/codebase/CONCERNS.md` [VERIFIED: codebase]
+- Existing source code -- `src/index.ts`, `vscode-ext/src/extension.ts`, `vscode-ext/src/types.ts` [VERIFIED: codebase]
 
 ### Tertiary (LOW confidence)
-- None -- all findings verified against installed type definitions or official documentation
+- none -- all claims verified against source code or official documentation
 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH -- all packages verified against installed type definitions and npm registry
-- Architecture: HIGH -- patterns derived from user decisions (D-01 through D-13) and verified SDK APIs
-- Pitfalls: MEDIUM -- based on known VS Code extension development patterns and Pi SDK behavior; some edge cases (ESM compatibility, event timing) need runtime verification
-- Validation: MEDIUM -- vitest setup is standard but no VS Code extension test runner integration exists yet
+- Standard stack: HIGH -- verified against codebase types, existing dependencies, environment
+- Architecture: HIGH -- derived from CONTEXT.md locked decisions and verified codebase analysis
+- Pitfalls: HIGH -- common patterns in VS Code extension dev and RPC client integration
+- Testing: HIGH -- vitest verified installed, configuration is straightforward
 
 **Research date:** 2026-06-14
-**Valid until:** 2026-07-14 (stable APIs -- VS Code Chat API and Pi SDK are mature)
+**Valid until:** 2026-07-14 (stable stack; Pi SDK ^0.74.0 may have minor changes)
