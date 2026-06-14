@@ -12,7 +12,20 @@ const sessionApproveAll = new Set<string>(); // review IDs auto-approved
 let projectCwd: string | null = null;
 
 
-// ─── Helper: create review request and wait for result ───────────────
+// ─── Helper: check if VS Code is watching this project ─────────────
+
+function isVscodeReady(cwd: string): boolean {
+    try {
+        const readyFile = join(cwd, '.pi', '.vscode-ready');
+        if (!existsSync(readyFile)) return false;
+        const ts = parseInt(readFileSync(readyFile, 'utf-8').trim(), 10);
+        if (isNaN(ts)) return false;
+        // Timestamp must be within last 30 seconds (heartbeat = 15s interval)
+        return Date.now() - ts < 30_000;
+    } catch {
+        return false;
+    }
+}
 
 type ReviewOutcome =
     | { status: "approved"; final: string }
@@ -30,19 +43,8 @@ async function createReviewAndWait(
     // Normalize path: LLM may pass absolute-looking path without leading /
     const normalizedPath = resolveSafe(ctx.cwd, filePath);
     const uuid = randomUUID();
-    const requestsDir = join(ctx.cwd, ".pi", "review-requests");
     const resultsDir = join(ctx.cwd, ".pi", "review-results");
-    mkdirSync(requestsDir, { recursive: true });
     mkdirSync(resultsDir, { recursive: true });
-
-    const reviewRequest = {
-        id: uuid,
-        title: description,
-        files: [{ path: normalizedPath, original, proposed, description }],
-    };
-
-    writeFileSync(join(requestsDir, `${uuid}.json`), JSON.stringify(reviewRequest, null, 2), "utf-8");
-    ctx.ui.notify(`📝 Review: ${filePath} — check VS Code diff`, "info");
 
     sessionReviewIds.add(uuid);
 
@@ -52,13 +54,39 @@ async function createReviewAndWait(
         return { status: "approved", final: proposed };
     }
 
-    // Show TUI immediately and poll VS Code in parallel (every 500ms).
-    // AbortController dismisses the TUI if VS Code responds first.
-    const resultPath = join(resultsDir, `${uuid}.json`);
-    const deadline = Date.now() + 10 * 60 * 1000;
-    const tuiController = new AbortController();
+    // Detect whether VS Code is open with this project.
+    // If not: skip writing review-requests (orphan files) and polling (wasted cycles).
+    // Fall back to TUI-only review.
+    const vscodeReady = isVscodeReady(ctx.cwd);
+
+    let pollPromise: Promise<{ action: string; prompt?: string }>;
+    let tuiController: AbortController;
+
+    if (vscodeReady) {
+        const requestsDir = join(ctx.cwd, ".pi", "review-requests");
+        mkdirSync(requestsDir, { recursive: true });
+
+        const reviewRequest = {
+            id: uuid,
+            title: description,
+            files: [{ path: normalizedPath, original, proposed, description }],
+        };
+        writeFileSync(join(requestsDir, `${uuid}.json`), JSON.stringify(reviewRequest, null, 2), "utf-8");
+        ctx.ui.notify(`📝 Review: ${filePath} — check VS Code diff`, "info");
+
+        const resultPath = join(resultsDir, `${uuid}.json`);
+        const deadline = Date.now() + 10 * 60 * 1000;
+        tuiController = new AbortController();
+        pollPromise = pollResultFile(resultPath, deadline, 500);
+    } else {
+        ctx.ui.notify(`📝 Review: ${filePath} — VS Code not open, terminal only`, "info");
+        tuiController = new AbortController();
+        // Never resolves — VS Code can't respond
+        pollPromise = new Promise(() => {});
+    }
+
+    // Show TUI selector (always, regardless of VS Code status)
     const tuiPromise = showTuiSelector(ctx, filePath, { signal: tuiController.signal });
-    const pollPromise = pollResultFile(resultPath, deadline, 500);
 
     const outcome = await Promise.race([tuiPromise, pollPromise]);
 

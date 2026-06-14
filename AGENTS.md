@@ -7,16 +7,34 @@
 ```
 Pi (terminal)                               VS Code (diff UI)
     │                                              │
-    ├─ writeFile(.pi/review-requests/{uuid}.json)  │
-    │                                              ├─ fs.watch → diff editor с ✓/✗
-    │         ...пользователь ревьюит...           │
-    │                                              ├─ ✓: tmp → оригинал
-    │                                              ├─ ✗: удалить tmp
-    │                                              └─ writeFile(.pi/review-results/{uuid}.json)
-    ├─ readFile(.pi/review-results/{uuid}.json)    │
+    ├─ isVscodeReady()? проверяет                  │
+    │  .pi/.vscode-ready (heartbeat ≤ 30s)         │
+    │  └─ если да:                                  │
+    │     ├─ writeFile(.pi/review-requests/...)     │
+    │     │                                        ├─ fs.watch → diff editor с ✓/✗
+    │     ├─ pollResultFile(...) каждые 500ms       │
+    │     │                                        ├─ ✓: tmp → оригинал
+    │     │                                        ├─ ✗: удалить tmp
+    │     │                                        └─ writeFile(.pi/review-results/...)
+    │     └─ TUI селектор (параллельно)             │
+    │  └─ если нет:                                 │
+    │     └─ только TUI селектор                    │
+    │         (review-requests не пишутся,           │
+    │          poll не запускается)                  │
     │                                              │
     └─ approved → пишем файл / rejected → isError  │
 ```
+
+### Обнаружение VS Code (`isVscodeReady`)
+
+VS Code extension при активации создаёт `.pi/.vscode-ready` с timestamp (Unix ms).
+Каждые 15 секунд heartbeat-интервал обновляет timestamp — это защита от crash/SIGKILL
+(без heartbeat файл остался бы после аварийного завершения). При нормальном закрытии
+`deactivate()` удаляет файл.
+
+Pi extension проверяет `isVscodeReady()` перед каждым review-запросом:
+- Файл существует **и** timestamp свежий (≤ 30 секунд) → VS Code жив
+- Иначе → TUI-only режим (review-requests не пишутся, poll не запускается)
 
 ## Протокол
 

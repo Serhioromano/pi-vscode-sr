@@ -30,6 +30,14 @@ export function activate(context: vscode.ExtensionContext) {
   fs.mkdirSync(requestsDir, { recursive: true });
   fs.mkdirSync(resultsDir, { recursive: true });
 
+  // Signal to Pi that VS Code is open with this project (heartbeat: timestamp)
+  const readyFile = path.join(workspaceRoot, '.pi', '.vscode-ready');
+  fs.writeFileSync(readyFile, Date.now().toString(), 'utf-8');
+  const heartbeatTimer = setInterval(() => {
+    try { fs.writeFileSync(readyFile, Date.now().toString(), 'utf-8'); } catch {}
+  }, 15_000);
+  context.subscriptions.push({ dispose: () => clearInterval(heartbeatTimer) });
+
   // Watch for new review requests
   watcher = fs.watch(requestsDir, (_event: string, filename: string | null) => {
     if (!filename?.endsWith('.json')) return;
@@ -60,6 +68,12 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   watcher?.close();
   resultsWatcher?.close();
+
+  // Remove readiness signal
+  try {
+    const readyFile = path.join(workspaceRoot, '.pi', '.vscode-ready');
+    if (fs.existsSync(readyFile)) fs.unlinkSync(readyFile);
+  } catch {}
 }
 
 // ─── Handle new review request ────────────────────────────────────────

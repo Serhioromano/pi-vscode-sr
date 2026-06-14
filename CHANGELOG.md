@@ -2,6 +2,16 @@
 
 All notable changes to Pi VS Code will be documented in this file.
 
+## [1.4.3] - 2026-06-14
+
+### Added
+
+- **VS Code detection via heartbeat file `.pi/.vscode-ready`:** Pi extension now checks whether VS Code is open with the current project before creating review requests. VS Code extension writes a timestamp (Unix ms) to `.pi/.vscode-ready` on activation and refreshes it every 15 seconds via `setInterval`. On deactivation, the file is deleted. Pi extension's `isVscodeReady()` checks that the file exists AND the timestamp is fresh (≤ 30 seconds). If VS Code is not detected:
+  - Review requests are NOT written to `.pi/review-requests/` (avoiding orphan files)
+  - Polling for VS Code results is skipped (no wasted 10-minute timeout)
+  - TUI selector is shown immediately — terminal-only review flow
+- **Heartbeat guards against stale lock file:** If VS Code crashes or is killed (SIGKILL), `deactivate()` doesn't run, but the 30-second freshness check on Pi's side detects the stale timestamp and correctly falls back to TUI-only mode.
+
 ## [1.4.2] - 2026-06-14
 
 ### Fixed

@@ -31,6 +31,7 @@ You can also approve/reject from the diff tab.
 > - .pi/review-requests/
 > - .pi/review-results/
 > - .pi/tmp/
+> - .pi/.vscode-ready
 
 ### 1. Pi Extension
 
@@ -38,7 +39,11 @@ You can also approve/reject from the diff tab.
 pi install npm:pi-vscode-sr
 ```
 
-Or install locally:
+Or install locally (**Recommended**):
+
+> [!IMPORTANT]
+> I recommend to install it locally because not every folder is a project of Visual Studio Code. Although there is a mechanism to detect if project is opened in VS Code or not anyway it could lead to unexpected behavior.
+
 
 ```bash
 pi install npm:pi-vscode-sr -l
