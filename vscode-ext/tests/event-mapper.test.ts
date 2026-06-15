@@ -18,7 +18,7 @@ describe('mapAgentEventToAction', () => {
   it('maps message_update with text delta to markdown action', () => {
     const event = {
       type: 'message_update',
-      assistantMessageEvent: { type: 'delta', delta: { type: 'text', text: 'Hello world' } },
+      assistantMessageEvent: { type: 'text_delta', delta: 'Hello world' } as any,
     } as AgentEvent;
     const action = mapAgentEventToAction(event);
     expect(action).toEqual({ type: 'markdown', value: 'Hello world' });
@@ -27,7 +27,7 @@ describe('mapAgentEventToAction', () => {
   it('maps message_update with non-text delta to empty markdown', () => {
     const event = {
       type: 'message_update',
-      assistantMessageEvent: { type: 'delta', delta: { type: 'tool_use' } },
+      assistantMessageEvent: { type: 'tool_use' } as any,
     } as AgentEvent;
     const action = mapAgentEventToAction(event);
     expect(action).toEqual({ type: 'markdown', value: '' });
