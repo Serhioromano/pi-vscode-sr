@@ -1,9 +1,9 @@
 ---
 status: complete
 phase: 01-foundation-chat-basics
-source: 01-01-SUMMARY.md, 01-02-SUMMARY.md, 01-03-SUMMARY.md, 01-04-SUMMARY.md, 01-05-SUMMARY.md
+source: 01-01-SUMMARY.md, 01-02-SUMMARY.md, 01-03-SUMMARY.md, 01-04-SUMMARY.md, 01-05-SUMMARY.md, 01-GAP-FIX-SUMMARY.md
 started: 2026-06-15T13:27:00Z
-updated: 2026-06-15T13:30:00Z
+updated: 2026-06-15T15:00:00Z
 ---
 
 ## Current Test
@@ -22,15 +22,15 @@ result: pass
 
 ### 3. Subsequent Messages Skip Lazy Start
 expected: After completing test 2, send another message to @pi (e.g., "how are you"). This time, "Starting Pi..." should NOT appear — Pi is already running. The response should come back faster since the Pi process is already alive.
-result: issue
-reported: "Every time I start a message it writes Starting Pi... Pi is working..."
-severity: major
+result: pass
+fix: GAP-FIX — chat-handler.ts checks getState() before showing "Starting Pi..."
+previous_result: issue
 
 ### 4. Pi Crash Recovery
-expected: With @pi active and responding, kill the Pi process (e.g., `pkill -f "pi "` or similar). Send another message to @pi. An error should appear in the chat with recovery instructions mentioning `pi -c` for recovery guidance.
-result: issue
-reported: "still Starting Pi... Pi is working."
-severity: major
+expected: With @pi active and responding, kill the Pi process. Send another message to @pi. An error appears in chat with "Send another message to restart." No pi -c terminal guidance (irrelevant for RPC-based Chat integration). Liveness check times out in 2s instead of hanging.
+result: pass
+fix: GAP-FIX — pi-process-manager.ts adds liveness check with 2s timeout, chat-handler.ts catch block renders crash error without pi -c
+previous_result: issue
 
 ### 5. Workspace Switch Restarts Pi
 expected: With @pi active in one workspace, switch to a different workspace folder. The Pi process from the previous workspace should stop. Send a message to @pi in the new workspace — a fresh Pi process should lazy-start (showing "Starting Pi..." again).
@@ -40,28 +40,24 @@ reason: skipped by user
 ## Summary
 
 total: 5
-passed: 2
-issues: 2
+passed: 4
+issues: 0
 pending: 0
 skipped: 1
-blocked: 0
-skipped: 0
 blocked: 0
 
 ## Gaps
 
 - truth: "Subsequent messages skip lazy start — 'Starting Pi...' only appears on first message"
-  status: failed
-  reason: "User reported: Every time I start a message it writes Starting Pi... Pi is working..."
+  status: resolved
+  reason: "GAP-FIX: chat-handler.ts checks getState() before showing progress. Test 3 re-tested and passed."
   severity: major
   test: 3
-  artifacts: []
-  missing: []
-- truth: "Killing Pi process shows error in chat with pi -c recovery guidance"
-  status: failed
-  reason: "User reported: still Starting Pi... Pi is working."
+  resolved_by: 01-GAP-FIX
+- truth: "Killing Pi process shows error in chat with recovery guidance"
+  status: resolved
+  reason: "GAP-FIX: pi-process-manager.ts adds liveness check with 2s timeout. chat-handler.ts catch block renders crash error. Test 4 re-tested and passed."
   severity: major
   test: 4
-  artifacts: []
-  missing: []
+  resolved_by: 01-GAP-FIX
 
