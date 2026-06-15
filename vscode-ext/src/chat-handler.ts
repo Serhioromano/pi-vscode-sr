@@ -10,10 +10,12 @@ export function createChatHandler(processManager: PiProcessManager): vscode.Chat
     stream: vscode.ChatResponseStream,
     _token: vscode.CancellationToken
   ): Promise<vscode.ChatResult> => {
-    // --- Interaction: Lazy Start (UI-SPEC lines 86-93) ---
-    stream.progress('Starting Pi...'); // Shown on first @pi message only (D-05)
-
     try {
+      // Only show lazy-start progress when Pi is not already running (Gap 1 closure, D-05)
+      const initialState = await processManager.getState().catch(() => ({ sessionId: null }));
+      if (!initialState.sessionId) {
+        stream.progress('Starting Pi...');
+      }
       // Lazy start: start() is no-op if already running
       await processManager.start();
 
