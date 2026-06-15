@@ -2,18 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { mapAgentEventToAction, applyStreamAction, StreamAction } from '../src/event-mapper';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 
-// Mock the vscode module so MarkdownString can be constructed in tests.
-// In the VS Code extension host, the real vscode module is always available;
-// in unit tests we substitute a minimal stand-in.
-vi.mock('vscode', () => {
-  class MockMarkdownString {
-    value: string;
-    supportHtml: boolean = false;
-    isTrusted: boolean = false;
-    constructor(value?: string) { this.value = value ?? ''; }
-  }
-  return { MarkdownString: MockMarkdownString };
-});
+// Mock the vscode module. Only ChatResponseStream is imported by event-mapper.ts;
+// the mock provides a minimal stand-in for the VS Code extension host.
+vi.mock('vscode', () => ({}));
 
 describe('mapAgentEventToAction', () => {
   it('maps agent_start to progress action', () => {
@@ -145,11 +136,10 @@ describe('mapAgentEventToAction', () => {
     } as AgentEvent;
     const action = mapAgentEventToAction(endEvent);
     expect(action.type).toBe('markdown');
-    const md = action.value as any;
-    expect(md.supportHtml).toBe(true);
-    expect(md.value).toContain('<details>');
-    expect(md.value).toContain('<summary>');
-    expect(md.value).toContain('line1');
+    const text = action.value as string;
+    expect(text).toContain(':white_check_mark: Completed');
+    expect(text).toContain('line1');
+    expect(text).toContain('```');
   });
 
   it('tool_execution_end returns empty in quiet mode', () => {
@@ -184,9 +174,8 @@ describe('mapAgentEventToAction', () => {
     } as AgentEvent;
     const action = mapAgentEventToAction(endEvent);
     expect(action.type).toBe('markdown');
-    const md = action.value as any;
-    expect(md.value).toContain('Failed');
-    expect(md.value).toContain('$(error)');
+    const text = action.value as string;
+    expect(text).toContain(':x: Failed');
   });
 
   it('tool_execution_end with isError false shows completed status', () => {
@@ -204,9 +193,8 @@ describe('mapAgentEventToAction', () => {
     } as AgentEvent;
     const action = mapAgentEventToAction(endEvent);
     expect(action.type).toBe('markdown');
-    const md = action.value as any;
-    expect(md.value).toContain('Completed');
-    expect(md.value).toContain('$(check)');
+    const text = action.value as string;
+    expect(text).toContain(':white_check_mark: Completed');
   });
 
   it('message_end resets tool buffer', () => {
@@ -300,19 +288,17 @@ describe('applyStreamAction', () => {
     expect(called).toBe('Test');
   });
 
-  it('calls stream.markdown with MarkdownString value and forwards it', () => {
+  it('calls stream.markdown with markdown-formatted tool output', () => {
     const stream = { progress: () => {}, markdown: () => {} };
     let called: any = null;
     stream.markdown = (v: any) => { called = v; };
 
-    // Construct a duck-typed MarkdownString-like object.
-    // The mock in vi.mock('vscode') replaces the real MarkdownString
-    // with MockMarkdownString; we build a plain object with the same shape.
-    const md = { value: '<details>test</details>', supportHtml: true, isTrusted: true };
-    applyStreamAction(stream as any, { type: 'markdown', value: md as any });
-    expect(called).toBe(md);
-    expect(called.value).toContain('<details>');
-    expect(called.supportHtml).toBe(true);
+    // Tool output is now pure markdown (no HTML/MarkdownString).
+    // VS Code Chat API strips all HTML from stream.markdown().
+    const text = '> **Tool: read** :white_check_mark: Completed\n>\n> ```\n> content\n> ```';
+    applyStreamAction(stream as any, { type: 'markdown', value: text });
+    expect(called).toBe(text);
+    expect(called).toContain(':white_check_mark:');
   });
 
   it('does not call stream.markdown for empty markdown action', () => {

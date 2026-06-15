@@ -1,4 +1,4 @@
-import { MarkdownString, type ChatResponseStream } from 'vscode';
+import type { ChatResponseStream } from 'vscode';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 
 /**
@@ -14,7 +14,7 @@ export type ToolVisibility = 'verbose' | 'quiet';
  */
 export type StreamAction =
   | { type: 'progress'; value: string }
-  | { type: 'markdown'; value: string | MarkdownString }
+  | { type: 'markdown'; value: string }
   | { type: 'done' }
   | { type: 'error'; value: string };
 
@@ -31,44 +31,24 @@ let toolBuffer: {
 } | null = null;
 
 /**
- * Escape HTML special characters so tool names and results are safe
- * inside the <details>/<summary> block.
- */
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-/**
- * Build a MarkdownString containing a collapsible <details>/<summary> HTML
- * section for one complete tool execution.  Called only from the
- * tool_execution_end handler.
+ * Build a markdown string for one complete tool execution.
+ * Called only from the tool_execution_end handler.
  *
- * Uses VS Code's MarkdownString with supportHtml = true so DOMPurify
- * allows the <details> and <summary> tags through.
+ * VS Code Chat API's stream.markdown() ignores MarkdownString.supportHtml and
+ * MarkdownString.isTrusted — the Chat panel strips ALL HTML for LLM-response
+ * security.  Therefore tool output MUST be pure markdown, never HTML.
  */
 function buildToolSection(buf: {
   toolName: string;
   args: string;
   partialResults: string[];
   isError: boolean;
-}): MarkdownString {
-  const status = buf.isError ? '$(error) Failed' : '$(check) Completed';
+}): string {
+  const status = buf.isError ? ':x: Failed' : ':white_check_mark: Completed';
   const resultContent = buf.partialResults.join('\n') || '(no output)';
 
-  // Use <pre> for code content inside <details> — markdown code fences
-  // (```) do not render correctly when nested inside HTML in VS Code Chat.
-  const html = '<details>\n<summary><strong>Tool: '
-    + escapeHtml(buf.toolName)
-    + '</strong> &mdash; '
-    + status
-    + '</summary>\n\n<pre>'
-    + escapeHtml(resultContent)
-    + '</pre>\n\n</details>';
-
-  const ms = new MarkdownString(html);
-  ms.supportHtml = true;
-  ms.isTrusted = true;
-  return ms;
+  return '> **Tool: ' + buf.toolName + '** ' + status + '\n>\n'
+    + '> ```\n> ' + resultContent.replace(/\n/g, '\n> ') + '\n> ```';
 }
 
 /**
