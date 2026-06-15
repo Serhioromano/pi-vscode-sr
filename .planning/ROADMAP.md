@@ -6,7 +6,7 @@ This roadmap transforms the pi-vscode-sr VS Code extension from a file-IPC-and-t
 
 ## Phases
 
-- [ ] **Phase 1: Foundation + Chat Basics** -- Modular refactoring, Pi process bridge, async migration, and basic `@pi` chat participant with message routing
+- [x] **Phase 1: Foundation + Chat Basics** -- Modular refactoring, Pi process bridge, async migration, and basic `@pi` chat participant with message routing (completed 2026-06-15)
 - [ ] **Phase 2: Rich Chat Experience** -- Streaming markdown responses, slash command forwarding, terminal TUI retention verification
 - [ ] **Phase 3: Visual Review Controls** -- Approve/reject/rethink buttons rendered inline in chat responses with batch actions
 - [ ] **Phase 4: Inline Completions** -- Ghost-text code suggestions with keystroke debounce, cancellation, feature toggle, and separate model configuration
@@ -39,7 +39,7 @@ This roadmap transforms the pi-vscode-sr VS Code extension from a file-IPC-and-t
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-05-PLAN.md -- Chat integration: chat-handler, extension.ts wiring, @pi participant
+- [x] 01-05-PLAN.md -- Chat integration: chat-handler, extension.ts wiring, @pi participant
 
 **UI hint**: yes
 
@@ -96,7 +96,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Chat Basics | 4/5 | In Progress|  |
+| 1. Foundation + Chat Basics | 5/5 | Complete   | 2026-06-15 |
 | 2. Rich Chat Experience | 0/0 | Not started | - |
 | 3. Visual Review Controls | 0/0 | Not started | - |
 | 4. Inline Completions | 0/0 | Not started | - |
