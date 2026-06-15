@@ -37,7 +37,10 @@ export function createPiProcessManager(opts: {
   return {
     async start() {
       if (state.client) return; // Already started
-      const { RpcClient: RpcClientClass } = await import('@earendil-works/pi-coding-agent');
+      // Bypass tsc's import()->require() rewriting — pi-coding-agent is ESM-only
+      const { RpcClient: RpcClientClass } = await new Function(
+        'spec', 'return import(spec)'
+      )('@earendil-works/pi-coding-agent') as typeof import('@earendil-works/pi-coding-agent');
       state.client = new RpcClientClass({
         cwd: state.cwd,
         provider: opts.provider,
