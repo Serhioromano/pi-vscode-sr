@@ -33,9 +33,9 @@ This roadmap transforms the pi-vscode-sr VS Code extension from a file-IPC-and-t
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md -- VS Code extension refactoring: review-coordinator, utils, deferred activation
-- [ ] 01-03-PLAN.md -- Pi extension refactoring: tool-overrides, review-lifecycle modules
-- [ ] 01-04-PLAN.md -- Event mapper (pure functions) + Pi process manager (factory wrapping RpcClient)
+- [x] 01-02-PLAN.md -- VS Code extension refactoring: review-coordinator, utils, deferred activation
+- [x] 01-03-PLAN.md -- Pi extension refactoring: tool-overrides, review-lifecycle modules
+- [x] 01-04-PLAN.md -- Event mapper (pure functions) + Pi process manager (factory wrapping RpcClient)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -96,7 +96,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Chat Basics | 1/5 | In Progress|  |
+| 1. Foundation + Chat Basics | 4/5 | In Progress|  |
 | 2. Rich Chat Experience | 0/0 | Not started | - |
 | 3. Visual Review Controls | 0/0 | Not started | - |
 | 4. Inline Completions | 0/0 | Not started | - |
