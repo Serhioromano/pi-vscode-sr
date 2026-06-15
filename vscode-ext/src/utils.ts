@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { IPC_HEARTBEAT, IPC_REVIEW_REQUESTS, IPC_REVIEW_RESULTS } from '../shared/ipc';
+import { IPC_HEARTBEAT, IPC_REVIEW_REQUESTS, IPC_REVIEW_RESULTS } from '../../shared/ipc';
 
 /**
  * Start a heartbeat timer that writes a timestamp to .pi/.vscode-ready

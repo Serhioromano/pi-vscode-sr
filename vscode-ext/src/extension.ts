@@ -5,7 +5,7 @@ import { createReviewCoordinator } from './review-coordinator';
 import { createPiProcessManager } from './pi-process-manager';
 import { createChatHandler } from './chat-handler';
 import { startHeartbeat, ensurePiDirs, checkPiInstalled } from './utils';
-import { IPC_HEARTBEAT } from '../shared/ipc';
+import { IPC_HEARTBEAT } from '../../shared/ipc';
 
 export function activate(context: vscode.ExtensionContext) {
   // Phase 1: Sync — must return in <1ms (FOUND-05)

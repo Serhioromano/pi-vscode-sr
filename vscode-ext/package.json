@@ -16,7 +16,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "main": "./dist/extension.js",
+  "main": "./dist/vscode-ext/src/extension.js",
   "contributes": {
     "chatParticipants": [
       {

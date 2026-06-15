@@ -5,4 +5,4 @@ export {
   ReviewResultFile,
   FileStatus,
   DiffSession,
-} from '../shared/types';
+} from '../../shared/types';

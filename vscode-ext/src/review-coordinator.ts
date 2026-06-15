@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
-import { ReviewRequest, ReviewResult, ReviewResultFile, DiffSession } from '../shared/types';
-import { resolveSafe } from '../shared/path-utils';
-import { IPC_REVIEW_REQUESTS, IPC_REVIEW_RESULTS, IPC_TMP } from '../shared/ipc';
+import { ReviewRequest, ReviewResult, ReviewResultFile, DiffSession } from '../../shared/types';
+import { resolveSafe } from '../../shared/path-utils';
+import { IPC_REVIEW_REQUESTS, IPC_REVIEW_RESULTS, IPC_TMP } from '../../shared/ipc';
 
 export interface ReviewCoordinator {
   start(): Promise<void>;
@@ -57,7 +57,7 @@ export function createReviewCoordinator(opts: {
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
-  async start(): Promise<void> {
+  async function start(): Promise<void> {
     try {
       await fs.mkdir(requestsDir, { recursive: true });
       await fs.mkdir(resultsDir, { recursive: true });

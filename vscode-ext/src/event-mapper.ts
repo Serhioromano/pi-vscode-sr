@@ -25,8 +25,8 @@ export function mapAgentEventToAction(event: AgentEvent): StreamAction {
 
     case 'message_update': {
       const msg = event.assistantMessageEvent;
-      if (msg.type === 'delta' && msg.delta?.type === 'text') {
-        return { type: 'markdown', value: msg.delta.text };
+      if (msg.type === 'text_delta') {
+        return { type: 'markdown', value: msg.delta };
       }
       return { type: 'markdown', value: '' };
     }
