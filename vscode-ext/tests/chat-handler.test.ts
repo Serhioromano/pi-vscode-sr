@@ -1,4 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('vscode', () => ({
+  ChatResponseStream: vi.fn(),
+  ChatRequest: vi.fn(),
+  ChatContext: vi.fn(),
+  CancellationToken: vi.fn(),
+  MarkdownString: vi.fn(),
+}));
+
 import { createChatHandler } from '../src/chat-handler';
 import type { PiProcessManager } from '../src/pi-process-manager';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
