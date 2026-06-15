@@ -57,7 +57,7 @@ export function createChatHandler(
         });
 
         const unsubscribe = processManager.onEvent((event: AgentEvent) => {
-          const action = mapAgentEventToAction(event);
+          const action = mapAgentEventToAction(event, resolvedSettings.toolVisibility);
           applyStreamAction(stream, action);
           if (event.type === 'agent_end') {
             resolveCompletion?.();

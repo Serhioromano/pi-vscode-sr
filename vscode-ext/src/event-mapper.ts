@@ -54,16 +54,20 @@ function buildToolSection(buf: {
 }): MarkdownString {
   const status = buf.isError ? '$(error) Failed' : '$(check) Completed';
   const resultContent = buf.partialResults.join('\n') || '(no output)';
+
+  // Use <pre> for code content inside <details> — markdown code fences
+  // (```) do not render correctly when nested inside HTML in VS Code Chat.
   const html = '<details>\n<summary><strong>Tool: '
     + escapeHtml(buf.toolName)
-    + '</strong> -- '
+    + '</strong> &mdash; '
     + status
-    + '</summary>\n\n```\n'
+    + '</summary>\n\n<pre>'
     + escapeHtml(resultContent)
-    + '\n```\n\n</details>';
+    + '</pre>\n\n</details>';
+
   const ms = new MarkdownString(html);
-  ms.supportHtml = true; // Allows <details>/<summary> through DOMPurify (D-03)
-  ms.isTrusted = true;   // Permits command: links if needed later
+  ms.supportHtml = true;
+  ms.isTrusted = true;
   return ms;
 }
 
