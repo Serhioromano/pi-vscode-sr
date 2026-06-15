@@ -18,6 +18,15 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "chatParticipants": [
+      {
+        "id": "pi-sr.chat",
+        "name": "pi",
+        "fullName": "Pi Agent",
+        "description": "Ask Pi to code, review files, run commands",
+        "isSticky": true
+      }
+    ],
     "commands": [
       {
         "command": "pi-sr.approveCurrent",
