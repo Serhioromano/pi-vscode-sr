@@ -9,10 +9,10 @@ Requirements for the VS Code native integration milestone. Each maps to roadmap 
 
 ### CHAT — Chat Integration
 
-- [ ] **CHAT-01**: User can invoke `@pi` in VS Code Chat panel to start a conversation with the Pi agent
+- [x] **CHAT-01**: User can invoke `@pi` in VS Code Chat panel to start a conversation with the Pi agent
 - [ ] **CHAT-02**: All Pi slash commands (`/model`, `/help`, `/plan`, `/handoff`, custom skills and agents) work through `@pi` chat — Pi engine handles them, VS Code extension passes through
 - [ ] **CHAT-03**: Pi responses stream progressively in chat (token-by-token markdown) via `stream.markdown()`
-- [ ] **CHAT-04**: Chat messages route to Pi via `PiProcessManager` (Pi SDK RPC child process), not through VS Code LM API
+- [x] **CHAT-04**: Chat messages route to Pi via `PiProcessManager` (Pi SDK RPC child process), not through VS Code LM API
 - [ ] **CHAT-05**: Terminal TUI remains operational as a parallel review path — chat features must not break the existing terminal workflow
 
 ### REVW — Review Controls
@@ -32,11 +32,11 @@ Requirements for the VS Code native integration milestone. Each maps to roadmap 
 
 ### FOUND — Foundation
 
-- [ ] **FOUND-01**: Modular file organization — monolithic `extension.ts` (368 lines) split into separate domain files: process manager, event mapper, chat handler, review coordinator, completion provider
-- [ ] **FOUND-02**: All synchronous file I/O (`readFileSync`, `writeFileSync`, `mkdirSync`) migrated to async `fs.promises` equivalents
-- [ ] **FOUND-03**: `PiProcessManager` manages Pi child process lifecycle — start, stop, restart, health check — via Pi SDK `RpcClient`
-- [ ] **FOUND-04**: `RpcEventMapper` transforms Pi agent events (`agent_start`, `turn_start`, `message_update`, `tool_execution_*`, `agent_end`) to `ChatResponseStream` actions as pure, testable functions
-- [ ] **FOUND-05**: Phased activation pattern — extension `activate()` returns immediately (<1ms sync setup), async initialization (file watchers, Pi process start) deferred and fire-and-forget
+- [x] **FOUND-01**: Modular file organization — monolithic `extension.ts` (368 lines) split into separate domain files: process manager, event mapper, chat handler, review coordinator, completion provider
+- [x] **FOUND-02**: All synchronous file I/O (`readFileSync`, `writeFileSync`, `mkdirSync`) migrated to async `fs.promises` equivalents
+- [x] **FOUND-03**: `PiProcessManager` manages Pi child process lifecycle — start, stop, restart, health check — via Pi SDK `RpcClient`
+- [x] **FOUND-04**: `RpcEventMapper` transforms Pi agent events (`agent_start`, `turn_start`, `message_update`, `tool_execution_*`, `agent_end`) to `ChatResponseStream` actions as pure, testable functions
+- [x] **FOUND-05**: Phased activation pattern — extension `activate()` returns immediately (<1ms sync setup), async initialization (file watchers, Pi process start) deferred and fire-and-forget
 
 ## v2 Requirements
 
@@ -79,15 +79,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 1 | Pending |
-| FOUND-02 | Phase 1 | Pending |
-| FOUND-03 | Phase 1 | Pending |
-| FOUND-04 | Phase 1 | Pending |
-| FOUND-05 | Phase 1 | Pending |
-| CHAT-01 | Phase 1 | Pending |
+| FOUND-01 | Phase 1 | Complete |
+| FOUND-02 | Phase 1 | Complete |
+| FOUND-03 | Phase 1 | Complete |
+| FOUND-04 | Phase 1 | Complete |
+| FOUND-05 | Phase 1 | Complete |
+| CHAT-01 | Phase 1 | Complete |
 | CHAT-02 | Phase 2 | Pending |
 | CHAT-03 | Phase 2 | Pending |
-| CHAT-04 | Phase 1 | Pending |
+| CHAT-04 | Phase 1 | Complete |
 | CHAT-05 | Phase 2 | Pending |
 | REVW-01 | Phase 3 | Pending |
 | REVW-02 | Phase 3 | Pending |
@@ -100,6 +100,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMP-05 | Phase 4 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 19 total
 - Mapped to phases: 19
 - Unmapped: 0 ✓
