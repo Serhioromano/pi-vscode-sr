@@ -49,13 +49,13 @@ export function activate(context: vscode.ExtensionContext) {
       const heartbeat = startHeartbeat(root);
       context.subscriptions.push(heartbeat);
 
-      // Register chat participant @pi (CHAT-01) — only if Pi is installed
-      if (piFound) {
-        const chatHandler = createChatHandler(processManager);
-        const participant = vscode.chat.createChatParticipant('pi-sr.chat', chatHandler);
-        participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
-        context.subscriptions.push(participant);
-      }
+      // Register chat participant @pi (CHAT-01)
+      // Always register so @pi appears in participant list.
+      // Handler shows actionable error if Pi isn't installed.
+      const chatHandler = createChatHandler(processManager);
+      const participant = vscode.chat.createChatParticipant('pi-sr.chat', chatHandler);
+      participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
+      context.subscriptions.push(participant);
 
       // Workspace isolation — stop process on workspace switch (partial D-08).
       // D-08 requires: (1) stop Pi process, (2) save session state, (3) restore on return.
