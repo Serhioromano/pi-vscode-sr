@@ -9,3 +9,4 @@ vscode-ext/node_modules/
 .pi/review-results/
 .pi/tmp/
 .pi/.vscode-ready
+.claude/

@@ -1,0 +1,6 @@
+strictModeWhiteList:
+  - ^cd\b
+  - ^git branch\b
+  - ^git log\b
+  - ^git status\b
+  - ^echo\b
