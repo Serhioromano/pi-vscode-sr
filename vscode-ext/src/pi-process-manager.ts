@@ -37,7 +37,21 @@ export function createPiProcessManager(opts: {
 
   return {
     async start() {
-      if (state.client) return; // Already started
+      if (state.client) {
+        // Verify the existing RpcClient is alive — the child process may have been
+        // killed externally while the JS object remains in memory (Gap 2, UAT Test 4)
+        try {
+          await state.client.getState();
+          return; // Client is alive — no need to recreate
+        } catch {
+          // Client is dead (child process killed, IPC broken).
+          // Clean up and throw to surface the crash to the caller (D-06: No silent restarts).
+          // The chat handler's catch block will show the pi -c recovery error.
+          state.client = null;
+          state.sessionId = null;
+          throw new Error('Pi process exited unexpectedly. Run `pi -c` in terminal to resume the session. Send another message to restart Pi.');
+        }
+      }
       // Bypass tsc's import()->require() rewriting — pi-coding-agent is ESM-only
       const { RpcClient: RpcClientClass } = await new Function(
         'spec', 'return import(spec)'
