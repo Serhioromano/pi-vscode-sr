@@ -6,10 +6,19 @@ import type { AgentEvent } from '@earendil-works/pi-agent-core';
 export function createChatHandler(processManager: PiProcessManager): vscode.ChatRequestHandler {
   return async (
     request: vscode.ChatRequest,
-    _context: vscode.ChatContext,
+    context: vscode.ChatContext,
     stream: vscode.ChatResponseStream,
     _token: vscode.CancellationToken
   ): Promise<vscode.ChatResult> => {
+    // New VS Code Chat session: restart Pi for a fresh context
+    // context.history is empty when the user starts a new chat (clicks New Chat button)
+    // Workspace switch is handled separately by onDidChangeWorkspaceFolders in extension.ts
+    if (context.history.length === 0) {
+      await processManager.restart().catch(() => {
+        // restart() calls stop() then start(); stop() is no-op when client is null
+      });
+    }
+
     try {
       // Only show lazy-start progress when Pi is not already running (Gap 1 closure, D-05)
       const initialState = await processManager.getState().catch(() => ({ sessionId: null }));
