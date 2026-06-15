@@ -96,7 +96,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Chat Basics | 5/5 | Complete   | 2026-06-15 |
+| 1. Foundation + Chat Basics | 6/6 | Complete   | 2026-06-15 |
 | 2. Rich Chat Experience | 0/0 | Not started | - |
 | 3. Visual Review Controls | 0/0 | Not started | - |
 | 4. Inline Completions | 0/0 | Not started | - |
