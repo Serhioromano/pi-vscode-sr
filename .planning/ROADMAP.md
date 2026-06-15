@@ -7,7 +7,7 @@ This roadmap transforms the pi-vscode-sr VS Code extension from a file-IPC-and-t
 ## Phases
 
 - [x] **Phase 1: Foundation + Chat Basics** -- Modular refactoring, Pi process bridge, async migration, and basic `@pi` chat participant with message routing (completed 2026-06-15)
-- [ ] **Phase 2: Rich Chat Experience** -- Streaming markdown responses, slash command forwarding, terminal TUI retention verification
+- [x] **Phase 2: Rich Chat Experience** -- Streaming markdown responses, slash command forwarding, terminal TUI retention verification (completed 2026-06-15)
 - [ ] **Phase 3: Visual Review Controls** -- Approve/reject/rethink buttons rendered inline in chat responses with batch actions
 - [ ] **Phase 4: Inline Completions** -- Ghost-text code suggestions with keystroke debounce, cancellation, feature toggle, and separate model configuration
 
@@ -58,12 +58,12 @@ This roadmap transforms the pi-vscode-sr VS Code extension from a file-IPC-and-t
 **UI hint**: yes
 
 **Wave 1**
-- [ ] 02-01-PLAN.md -- Infrastructure: PiProcessManager interface extensions, VS Code settings, RPC UI handler factory
-- [ ] 02-02-PLAN.md -- Event mapper: tool visibility with collapsible `<details>` sections, buffered HTML output
-- [ ] 02-03-PLAN.md -- Chat handler: progressive streaming via `onEvent()` + `prompt()`, interruption handling, slash passthrough
+- [x] 02-01-PLAN.md -- Infrastructure: PiProcessManager interface extensions, VS Code settings, RPC UI handler factory
+- [x] 02-02-PLAN.md -- Event mapper: tool visibility with collapsible `<details>` sections, buffered HTML output
+- [x] 02-03-PLAN.md -- Chat handler: progressive streaming via `onEvent()` + `prompt()`, interruption handling, slash passthrough
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 02-04-PLAN.md -- Extension wiring: settings integration, RPC UI handler registration, followup provider
+- [x] 02-04-PLAN.md -- Extension wiring: settings integration, RPC UI handler registration, followup provider
 
 ### Phase 3: Visual Review Controls
 
@@ -105,6 +105,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Chat Basics | 6/6 | Complete    | 2026-06-15 |
-| 2. Rich Chat Experience | 0/4 | Not started | - |
+| 2. Rich Chat Experience | 4/4 | Complete    | 2026-06-15 |
 | 3. Visual Review Controls | 0/0 | Not started | - |
 | 4. Inline Completions | 0/0 | Not started | - |

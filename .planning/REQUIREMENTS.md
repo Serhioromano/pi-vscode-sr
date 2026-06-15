@@ -10,10 +10,10 @@ Requirements for the VS Code native integration milestone. Each maps to roadmap 
 ### CHAT — Chat Integration
 
 - [x] **CHAT-01**: User can invoke `@pi` in VS Code Chat panel to start a conversation with the Pi agent
-- [ ] **CHAT-02**: All Pi slash commands (`/model`, `/help`, `/plan`, `/handoff`, custom skills and agents) work through `@pi` chat — Pi engine handles them, VS Code extension passes through
-- [ ] **CHAT-03**: Pi responses stream progressively in chat (token-by-token markdown) via `stream.markdown()`
+- [x] **CHAT-02**: All Pi slash commands (`/model`, `/help`, `/plan`, `/handoff`, custom skills and agents) work through `@pi` chat — Pi engine handles them, VS Code extension passes through
+- [x] **CHAT-03**: Pi responses stream progressively in chat (token-by-token markdown) via `stream.markdown()`
 - [x] **CHAT-04**: Chat messages route to Pi via `PiProcessManager` (Pi SDK RPC child process), not through VS Code LM API
-- [ ] **CHAT-05**: Terminal TUI remains operational as a parallel review path — chat features must not break the existing terminal workflow
+- [x] **CHAT-05**: Terminal TUI remains operational as a parallel review path — chat features must not break the existing terminal workflow
 
 ### REVW — Review Controls
 
@@ -85,10 +85,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUND-04 | Phase 1 | Complete |
 | FOUND-05 | Phase 1 | Complete |
 | CHAT-01 | Phase 1 | Complete |
-| CHAT-02 | Phase 2 | Pending |
-| CHAT-03 | Phase 2 | Pending |
+| CHAT-02 | Phase 2 | Complete |
+| CHAT-03 | Phase 2 | Complete |
 | CHAT-04 | Phase 1 | Complete |
-| CHAT-05 | Phase 2 | Pending |
+| CHAT-05 | Phase 2 | Complete |
 | REVW-01 | Phase 3 | Pending |
 | REVW-02 | Phase 3 | Pending |
 | REVW-03 | Phase 3 | Pending |
