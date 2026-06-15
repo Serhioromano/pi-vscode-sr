@@ -31,6 +31,38 @@ let toolBuffer: {
 } | null = null;
 
 /**
+ * Format tool arguments for display.  Extracts the most informative field
+ * depending on the tool type (e.g. the command for bash, the path for read).
+ */
+function formatToolInput(toolName: string, argsJson: string): string {
+  try {
+    const args = JSON.parse(argsJson) as Record<string, unknown>;
+    switch (toolName) {
+      case 'bash': {
+        const cmd = typeof args.command === 'string' ? args.command : '';
+        const cwd = typeof args.workdir === 'string' ? args.workdir
+                 : typeof args.cwd === 'string' ? args.cwd : '';
+        return cmd + (cwd ? '\n(in ' + cwd + ')' : '');
+      }
+      case 'read':
+        return typeof args.path === 'string' ? args.path : argsJson;
+      case 'write':
+        return typeof args.path === 'string' ? args.path : argsJson;
+      case 'edit': {
+        const ep = typeof args.path === 'string' ? args.path : '';
+        const edits = Array.isArray(args.edits) ? args.edits.length + ' edit(s)' : '';
+        return ep + (edits ? ' — ' + edits : '');
+      }
+      default:
+        // Generic: show the raw args, but keep it compact
+        return argsJson.length > 200 ? argsJson.slice(0, 200) + '…' : argsJson;
+    }
+  } catch {
+    return argsJson;
+  }
+}
+
+/**
  * Build a markdown string for one complete tool execution.
  * Called only from the tool_execution_end handler.
  *
@@ -45,10 +77,17 @@ function buildToolSection(buf: {
   isError: boolean;
 }): string {
   const status = buf.isError ? ':x: Failed' : ':white_check_mark: Completed';
+  const input = formatToolInput(buf.toolName, buf.args);
   const resultContent = buf.partialResults.join('\n') || '(no output)';
 
-  return '> **Tool: ' + buf.toolName + '** ' + status + '\n>\n'
-    + '> ```\n> ' + resultContent.replace(/\n/g, '\n> ') + '\n> ```';
+  let md = '> **' + buf.toolName + '** ' + status + '\n';
+  md += '> ```\n> ' + input.replace(/\n/g, '\n> ') + '\n> ```\n';
+
+  if (resultContent !== '(no output)') {
+    md += '>\n> ```\n> ' + resultContent.replace(/\n/g, '\n> ') + '\n> ```';
+  }
+
+  return md;
 }
 
 /**
