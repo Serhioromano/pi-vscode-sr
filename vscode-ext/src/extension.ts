@@ -4,7 +4,7 @@ import * as path from 'path';
 import { createReviewCoordinator } from './review-coordinator';
 import { createPiProcessManager } from './pi-process-manager';
 import { createChatHandler } from './chat-handler';
-import { startHeartbeat, ensurePiDirs, checkPiInstalled } from './utils';
+import { startHeartbeat, ensurePiDirs, checkPiInstalled, getPiPath } from './utils';
 
 export function activate(context: vscode.ExtensionContext) {
   // Phase 1: Sync — must return in <1ms (FOUND-05)
@@ -18,7 +18,8 @@ export function activate(context: vscode.ExtensionContext) {
   const reviewCoordinator = createReviewCoordinator({ workspaceRoot: root });
 
   // Create PiProcessManager factory immediately (synchronous, no I/O — D-05 lazy start)
-  const processManager = createPiProcessManager({ cwd: root });
+  const piPath = getPiPath();
+  const processManager = createPiProcessManager({ cwd: root, cliPath: piPath });
 
   // Register sync commands immediately
   context.subscriptions.push(

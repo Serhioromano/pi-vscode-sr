@@ -37,3 +37,16 @@ export async function checkPiInstalled(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Resolve the full path to the Pi CLI binary.
+ * Returns null if Pi is not installed.
+ */
+export function getPiPath(): string | null {
+  try {
+    const { execSync } = require('child_process');
+    return execSync('which pi', { stdio: 'pipe', encoding: 'utf-8' }).trim() || null;
+  } catch {
+    return null;
+  }
+}

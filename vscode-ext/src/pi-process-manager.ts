@@ -24,6 +24,7 @@ export function createPiProcessManager(opts: {
   cwd: string;
   model?: string;
   provider?: string;
+  cliPath?: string | null;
 }): PiProcessManager {
   const state: PiProcessManagerState = {
     client: null,
@@ -45,6 +46,7 @@ export function createPiProcessManager(opts: {
         cwd: state.cwd,
         provider: opts.provider,
         model: opts.model,
+        cliPath: opts.cliPath ?? undefined,
       });
       await state.client.start();
       // Per Open Question 1: start() implicitly creates a session
