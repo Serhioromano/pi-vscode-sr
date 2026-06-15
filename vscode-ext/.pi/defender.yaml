@@ -4,3 +4,7 @@ strictModeWhiteList:
   - ^git log\b
   - ^git status\b
   - ^echo\b
+  - ^git remote\b
+  - ^git push\b
+  - ^git fetch\b
+  - ^git show\b
