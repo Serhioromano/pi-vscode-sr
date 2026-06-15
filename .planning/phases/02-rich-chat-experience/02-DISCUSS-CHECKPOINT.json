@@ -1,0 +1,58 @@
+{
+  "phase": "2",
+  "phase_name": "Rich Chat Experience",
+  "timestamp": "2026-06-15T00:00:00.000Z",
+  "areas_completed": ["Tool Execution Visibility", "Mid-response Interruption"],
+  "areas_remaining": ["Slash Command UX", "Terminal TUI Coexistence"],
+  "decisions": {
+    "Tool Execution Visibility": [
+      {
+        "question": "How should tool execution progress appear during streaming?",
+        "answer": "Configurable via VS Code setting — user preference, not hardcoded behavior",
+        "options_presented": ["Show everything progressively", "Compact one-liners only", "Minimal — just 'Pi is working...'", "Context-aware visibility"]
+      },
+      {
+        "question": "What granularity should the tool visibility setting offer?",
+        "answer": "Two levels: verbose / quiet",
+        "options_presented": ["Three levels: full / compact / minimal", "Two levels: verbose / quiet", "Per-category toggles"]
+      },
+      {
+        "question": "Which should be the default?",
+        "answer": "verbose (default)",
+        "options_presented": ["quiet (default)", "verbose (default)"]
+      },
+      {
+        "question": "How should verbose mode render tool execution?",
+        "answer": "Collapsible sections, collapsed by default. Tool name as summary, user clicks to expand and see details/partial results. Setting name: pi.chat.toolVisibility with values 'verbose' | 'quiet'.",
+        "options_presented": []
+      }
+    ],
+    "Mid-response Interruption": [
+      {
+        "question": "When the user sends a message while Pi is still streaming: what should happen?",
+        "answer": "Configurable via VS Code setting — user preference",
+        "options_presented": ["Abort and restart fresh", "Context-aware routing", "Always steer", "Always queue"]
+      },
+      {
+        "question": "What options should the interruption behavior setting offer?",
+        "answer": "Two: abort (kill and restart) and followUp (queue, never interrupt). Steer excluded for simplicity.",
+        "options_presented": ["Three options: abort / steer / followUp", "Two: abort vs queue"]
+      },
+      {
+        "question": "Which should be the default?",
+        "answer": "abort (default) — feels responsive, what most chat apps do",
+        "options_presented": ["abort (default)", "followUp (default)"]
+      }
+    ]
+  },
+  "deferred_ideas": [],
+  "canonical_refs": [
+    ".planning/ROADMAP.md",
+    ".planning/REQUIREMENTS.md",
+    ".planning/PROJECT.md",
+    "vscode-ext/src/chat-handler.ts",
+    "vscode-ext/src/event-mapper.ts",
+    "vscode-ext/src/pi-process-manager.ts",
+    "node_modules/@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-client.d.ts"
+  ]
+}

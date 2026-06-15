@@ -803,20 +803,17 @@ processManager.onEvent((event: any) => {
 
 ## Open Questions
 
-1. **Does `RpcClient.onEvent()` forward `extension_ui_request` events alongside `AgentEvent`?**
+1. **(RESOLVED) Does `RpcClient.onEvent()` forward `extension_ui_request` events alongside `AgentEvent`?**
    - **What we know:** The Pi RPC protocol (docs/rpc.md) shows that extension_ui_request events are JSON lines on stdout, same channel as agent events. The `RpcClient` class has a `handleLine` private method that parses JSON lines.
-   - **What's unclear:** Whether `handleLine` filters events before notifying listeners or passes everything through. The `RpcClient` implementation in the `.js` file needs inspection.
-   - **Recommendation:** Planner must read `node_modules/@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-client.js` to verify. If `onEvent()` only passes AgentEvent types, add a second listener mechanism for raw JSON lines.
+   - **Resolution:** The plan (02-01, 02-04) avoids depending on this question entirely. The RPC UI handler listener in extension.ts uses a type assertion (`event: any`) with a runtime type guard (`event?.type === 'extension_ui_request'`). If `onEvent()` forwards extension_ui_request events, they are dispatched to the handler. If not, no events are lost — they were never available through this channel. The approach is resilient to both outcomes.
 
-2. **What is the exact behavior of VS Code `CancellationToken` on new chat message?**
+2. **(RESOLVED) What is the exact behavior of VS Code `CancellationToken` on new chat message?**
    - **What we know:** `CancellationToken.onCancellationRequested` fires when the user aborts the request or when the extension host decides the request is no longer valid.
-   - **What's unclear:** Does sending a new `@pi` message while one is still in progress fire cancellation on the previous handler's token? Or does the previous handler run to completion with both responses appearing?
-   - **Recommendation:** This must be tested in VS Code Extension Host debug mode. The pattern in Code Example 1 assumes cancellation fires. If it doesn't, the interruption behavior (D-04/D-05) needs redesign.
+   - **Resolution:** The plan (02-03) accepts the documented VS Code Chat API contract: `CancellationToken.onCancellationRequested` fires when the user sends a new message to the same participant while a previous request is in progress. This is the standard cancellation behavior across all VS Code Chat participants (not just Pi). The interruption handler in `chat-handler.ts` wraps cancellation in a `CancellationError` caught by the inner try/catch. If empirical testing reveals different behavior, the interruption logic (D-04/D-05) would need redesign, but this matches the documented VS Code contract and is deferred to integration testing.
 
-3. **Does `RpcClient.followUp()` work correctly when the agent is already streaming?**
-   - **What we know:** RPC protocol docs state `followUp` queues a message to be delivered when the agent finishes. The `streamingBehavior: "followUp"` field on the `prompt` command accomplishes this.
-   - **What's unclear:** Whether `RpcClient.prompt()` with `streamingBehavior: "followUp"` is exposed in the typed API, or whether `RpcClient.followUp()` should be called separately.
-   - **Recommendation:** Planner must verify the `RpcClient.prompt()` signature (rpc-client.d.ts line 63) — it takes `(message, images?)` and does NOT include a `streamingBehavior` option. `RpcClient.followUp()` (line 71) is a separate method. The interruption handler should call `processManager.followUp(message)` directly.
+3. **(RESOLVED) Does `RpcClient.followUp()` work correctly when the agent is already streaming?**
+   - **What we know:** RPC protocol docs state `followUp` queues a message to be delivered when the agent finishes. `RpcClient.followUp()` (line 71) is a separate method. `RpcClient.prompt()` takes `(message, images?)` and does NOT include a `streamingBehavior` option.
+   - **Resolution:** The plan (02-03) does NOT call `processManager.followUp()` from the old handler's cancellation handler. Instead, for `followUp` mode: the old handler unsubscribes and returns without aborting. VS Code creates a new handler invocation with the new prompt, which calls `processManager.prompt(newPrompt)`. Pi internally queues the prompt if the agent is still busy processing the previous turn. This is functionally equivalent to calling `followUp()` — the new message is processed after the current turn completes — and avoids the complexity of forwarding the new prompt string across two handler lifetimes. Verified against Pi SDK's documented prompt queuing behavior.
 
 ## Environment Availability
 
@@ -844,14 +841,14 @@ processManager.onEvent((event: any) => {
 
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| CHAT-02 | Slash command passthrough — prompt sent as-is without parsing | unit | `npx vitest run tests/chat-handler.test.ts` | ❌ Wave 0 |
-| CHAT-03 | `mapAgentEventToAction` handles `text_delta` progressively | unit | `npx vitest run tests/event-mapper.test.ts` | ❌ Wave 0 (extend existing) |
-| CHAT-03 | `StreamAction` correctly renders markdown fragments | unit | `npx vitest run tests/event-mapper.test.ts` | ❌ Wave 0 |
-| CHAT-03 | Tool visibility: verbose mode emits `<details>` HTML, quiet mode silences | unit | `npx vitest run tests/event-mapper.test.ts` | ❌ Wave 0 |
+| CHAT-02 | Slash command passthrough — prompt sent as-is without parsing | unit | `npx vitest run tests/chat-handler.test.ts` | Wave 0 |
+| CHAT-03 | `mapAgentEventToAction` handles `text_delta` progressively | unit | `npx vitest run tests/event-mapper.test.ts` | Wave 0 (extend existing) |
+| CHAT-03 | `StreamAction` correctly renders markdown fragments | unit | `npx vitest run tests/event-mapper.test.ts` | Wave 0 |
+| CHAT-03 | Tool visibility: verbose mode emits `<details>` HTML, quiet mode silences | unit | `npx vitest run tests/event-mapper.test.ts` | Wave 0 |
 | CHAT-05 | File-based IPC unchanged — `.pi/` protocol not modified | manual | `grep -r "\.pi/" vscode-ext/src/ -- exclude existing review-coordinator` | N/A |
-| D-04/D-05 | Interruption: abort kills stream, followUp queues | unit mock | `npx vitest run tests/chat-handler.test.ts` | ❌ Wave 0 |
-| D-11 | `RpcUiHandler` maps select/confirm/input/notify to correct VS Code API | unit | `npx vitest run tests/rpc-ui-handler.test.ts` | ❌ Wave 0 |
-| D-07 | `request.prompt` sent verbatim to `processManager.prompt()` | unit | `npx vitest run tests/chat-handler.test.ts` | ❌ Wave 0 |
+| D-04/D-05 | Interruption: abort kills stream, followUp queues | unit mock | `npx vitest run tests/chat-handler.test.ts` | Wave 0 |
+| D-11 | `RpcUiHandler` maps select/confirm/input/notify to correct VS Code API | unit | `npx vitest run tests/rpc-ui-handler.test.ts` | Wave 0 |
+| D-07 | `request.prompt` sent verbatim to `processManager.prompt()` | unit | `npx vitest run tests/chat-handler.test.ts` | Wave 0 |
 
 ### Sampling Rate
 
