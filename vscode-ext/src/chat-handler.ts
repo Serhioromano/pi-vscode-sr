@@ -47,7 +47,7 @@ export function createChatHandler(processManager: PiProcessManager): vscode.Chat
       stream.markdown(
         '**Pi process exited unexpectedly.**\n\n' +
         '```\n' + errorMsg + '\n```\n\n' +
-        'Run `pi -c` in terminal to resume the session. Send another message to restart Pi.'
+        'Send another message to restart.'
       );
       return {};
     }
