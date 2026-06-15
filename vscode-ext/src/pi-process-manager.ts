@@ -1,12 +1,30 @@
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { RpcClient } from '@earendil-works/pi-coding-agent';
 
+// Local interface matching Pi SDK's RpcSlashCommand shape (not re-exported from main entrypoint)
+interface RpcSlashCommand {
+  name: string;
+  description?: string;
+  source: "extension" | "prompt" | "skill";
+  sourceInfo: any;
+}
+
+// Local interface for extension UI response (avoids subpath import complications)
+interface RpcExtensionUIResponse {
+  type: "extension_ui_response";
+  id: string;
+  value?: string;
+  confirmed?: boolean;
+  cancelled?: true;
+}
+
 export interface PiProcessManagerState {
   client: RpcClient | null;
   cwd: string;
   model?: string;
   provider?: string;
   sessionId: string | null;
+  stdin: NodeJS.WritableStream | null;
 }
 
 export interface PiProcessManager {
@@ -18,6 +36,9 @@ export interface PiProcessManager {
   abort(): Promise<void>;
   onEvent(listener: (event: AgentEvent) => void): () => void;
   getState(): Promise<{ sessionId: string | null }>;
+  getCommands(): Promise<RpcSlashCommand[]>;
+  followUp(message: string): Promise<void>;
+  sendRpcMessage(response: RpcExtensionUIResponse): Promise<void>;
 }
 
 export function createPiProcessManager(opts: {
@@ -32,6 +53,7 @@ export function createPiProcessManager(opts: {
     model: opts.model,
     provider: opts.provider,
     sessionId: null,
+    stdin: null,
   };
   const listeners = new Set<(event: AgentEvent) => void>();
 
@@ -67,6 +89,8 @@ export function createPiProcessManager(opts: {
         cliPath: opts.cliPath ?? undefined,
       });
       await state.client.start();
+      // Capture stdin for sendRpcMessage extension UI responses
+      state.stdin = (state.client as any).process?.stdin ?? null;
       // Per Open Question 1: start() implicitly creates a session
       const sessionState = await state.client.getState();
       state.sessionId = sessionState.sessionId;
@@ -83,6 +107,7 @@ export function createPiProcessManager(opts: {
       await state.client.stop();
       state.client = null;
       state.sessionId = null;
+      state.stdin = null;
     },
 
     async restart() {
@@ -116,6 +141,32 @@ export function createPiProcessManager(opts: {
       if (!state.client) return { sessionId: null };
       const s = await state.client.getState();
       return { sessionId: s.sessionId };
+    },
+
+    async getCommands() {
+      if (!state.client) throw new Error('Pi process not started');
+      return state.client.getCommands();
+    },
+
+    async followUp(message: string) {
+      if (!state.client) throw new Error('Pi process not started');
+      try {
+        await state.client.followUp(message);
+      } catch (err) {
+        // Best-effort by design — errors are non-critical
+        console.warn('followUp failed:', err);
+      }
+    },
+
+    async sendRpcMessage(response: RpcExtensionUIResponse) {
+      if (!state.stdin) return;
+      const json = JSON.stringify(response) + '\n';
+      return new Promise<void>((resolve, reject) => {
+        state.stdin!.write(json, (err: Error | null | undefined) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
     },
   };
 }
