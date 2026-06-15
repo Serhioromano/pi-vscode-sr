@@ -5,7 +5,6 @@ import { createReviewCoordinator } from './review-coordinator';
 import { createPiProcessManager } from './pi-process-manager';
 import { createChatHandler } from './chat-handler';
 import { startHeartbeat, ensurePiDirs, checkPiInstalled } from './utils';
-import { IPC_HEARTBEAT } from '../../shared/ipc';
 
 export function activate(context: vscode.ExtensionContext) {
   // Phase 1: Sync — must return in <1ms (FOUND-05)
@@ -26,6 +25,13 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('pi-sr.approveCurrent', () => reviewCoordinator.approveCurrent()),
     vscode.commands.registerCommand('pi-sr.rejectCurrent', () => reviewCoordinator.rejectCurrent()),
   );
+
+  // Register chat participant @pi synchronously (CHAT-01)
+  // MUST be sync — VS Code Chat API requires handler registered during activation, not in deferred callback
+  const chatHandler = createChatHandler(processManager);
+  const participant = vscode.chat.createChatParticipant('pi-sr.chat', chatHandler);
+  participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
+  context.subscriptions.push(participant);
 
   // Phase 2: Deferred async initialization (fire-and-forget)
   void (async () => {
@@ -49,13 +55,6 @@ export function activate(context: vscode.ExtensionContext) {
       const heartbeat = startHeartbeat(root);
       context.subscriptions.push(heartbeat);
 
-      // Register chat participant @pi (CHAT-01)
-      // Always register so @pi appears in participant list.
-      // Handler shows actionable error if Pi isn't installed.
-      const chatHandler = createChatHandler(processManager);
-      const participant = vscode.chat.createChatParticipant('pi-sr.chat', chatHandler);
-      participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
-      context.subscriptions.push(participant);
 
       // Workspace isolation — stop process on workspace switch (partial D-08).
       // D-08 requires: (1) stop Pi process, (2) save session state, (3) restore on return.
