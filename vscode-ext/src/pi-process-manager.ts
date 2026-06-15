@@ -1,5 +1,5 @@
-import { RpcClient } from '@earendil-works/pi-coding-agent';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
+import type { RpcClient } from '@earendil-works/pi-coding-agent';
 
 export interface PiProcessManagerState {
   client: RpcClient | null;
@@ -37,7 +37,8 @@ export function createPiProcessManager(opts: {
   return {
     async start() {
       if (state.client) return; // Already started
-      state.client = new RpcClient({
+      const { RpcClient: RpcClientClass } = await import('@earendil-works/pi-coding-agent');
+      state.client = new RpcClientClass({
         cwd: state.cwd,
         provider: opts.provider,
         model: opts.model,
