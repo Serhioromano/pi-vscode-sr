@@ -52,6 +52,23 @@
           "group": "navigation@2"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pi Agent",
+      "properties": {
+        "pi.chat.toolVisibility": {
+          "type": "string",
+          "default": "verbose",
+          "enum": ["verbose", "quiet"],
+          "description": "Controls tool execution display in Pi chat responses. Verbose shows collapsible sections with tool details; quiet shows only 'Pi is working...' progress."
+        },
+        "pi.chat.interruptionBehavior": {
+          "type": "string",
+          "default": "abort",
+          "enum": ["abort", "followUp"],
+          "description": "Controls behavior when a new message is sent while Pi is still streaming. Abort cancels the current response; followUp queues the message to process after the current response completes."
+        }
+      }
     }
   },
   "scripts": {
